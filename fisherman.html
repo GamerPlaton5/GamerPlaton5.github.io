@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>РЫБАК</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@600;800&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;user-select:none;}
+  body{font-family:'Russo One',sans-serif;background:#020812;min-height:100vh;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  #wrap{position:relative;width:860px;max-width:98vw;height:560px;max-height:90vh;
+    border-radius:14px;overflow:hidden;background:#000;
+    box-shadow:0 0 60px rgba(40,140,220,.4);}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none;}
+  #hud{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;
+    justify-content:space-between;align-items:center;padding:10px 18px;
+    background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);
+    color:#ffd060;font-family:'Orbitron';font-weight:800;font-size:16px;letter-spacing:1px;
+    text-shadow:0 0 8px #000;pointer-events:none;}
+  #hud .stage{color:#7ec8ff;font-size:14px;letter-spacing:3px;}
+  #stageLabel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    z-index:8;color:#fff;font-family:'Orbitron';font-weight:900;font-size:42px;letter-spacing:5px;
+    text-shadow:0 0 30px #1080ff;opacity:0;pointer-events:none;transition:opacity .4s;}
+  #stageLabel.show{opacity:1;}
+  #screen{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
+    background:radial-gradient(ellipse at center,#08203a 0%,#020812 70%);
+    color:#cde;padding:24px;}
+  #screen.hidden{display:none;}
+  h1{font-size:50px;color:#7ec8ff;text-shadow:0 0 30px #1080ff;margin-bottom:8px;letter-spacing:5px;
+    font-family:'Orbitron';}
+  h2{font-size:18px;color:#9cc;letter-spacing:3px;margin-bottom:18px;font-family:'Orbitron';}
+  p{font-size:15px;line-height:1.8;margin-bottom:14px;color:#bcd;max-width:580px;}
+  .key{background:#0e2238;border:1px solid #4a8;border-radius:4px;padding:2px 8px;color:#9cf;font-family:'Russo One';}
+  .btn{background:linear-gradient(135deg,#3aa8ff,#1060c0);color:#fff;border:none;
+    border-radius:6px;padding:14px 44px;font-family:'Orbitron';font-size:18px;font-weight:800;
+    letter-spacing:3px;cursor:pointer;box-shadow:0 0 24px rgba(80,180,255,.5);text-transform:uppercase;}
+  .btn:active{transform:scale(.96);}
+  .shopGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:14px 0;max-width:640px;}
+  .shopItem{background:rgba(20,30,50,.85);border:1px solid #3a5a80;border-radius:10px;padding:14px;
+    display:flex;flex-direction:column;align-items:center;}
+  .shopItem .icon{font-size:46px;line-height:1;margin-bottom:6px;}
+  .shopItem .title{font-family:'Orbitron';color:#7ec8ff;font-size:14px;letter-spacing:1px;margin-bottom:4px;}
+  .shopItem .lvl{font-size:12px;color:#9ab;margin-bottom:6px;}
+  .shopItem .price{color:#ffd060;font-family:'Orbitron';font-weight:800;margin-bottom:8px;}
+  .buyBtn{background:linear-gradient(135deg,#22a060,#106030);color:#fff;border:none;border-radius:5px;
+    padding:8px 16px;font-family:'Orbitron';font-weight:800;cursor:pointer;font-size:12px;letter-spacing:2px;}
+  .buyBtn:disabled{background:#333;color:#666;cursor:not-allowed;}
+  .buyBtn:active:not(:disabled){transform:scale(.95);}
+  .maxLbl{color:#22dd44;font-family:'Orbitron';font-size:11px;letter-spacing:1px;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv" width="860" height="560"></canvas>
+  <div id="hud">
+    <div class="stage" id="stageTxt">ЭТАП 1: РЫБАЛКА</div>
+    <div>💰 <span id="money">0</span></div>
+    <div>🐟 <span id="caught">0</span>/7</div>
+  </div>
+  <div id="stageLabel"></div>
+  <div id="screen"></div>
+</div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+const screen=document.getElementById('screen');
+const moneyEl=document.getElementById('money'),caughtEl=document.getElementById('caught');
+const stageTxt=document.getElementById('stageTxt'),stageLabel=document.getElementById('stageLabel');
+
+// ============ АУДИО ============
+let audioCtx=null;
+function initAudio(){if(audioCtx)return;try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){audioCtx=null;}}
+function tone(freq,dur,type='sine',vol=0.12,when=0){
+  if(!audioCtx)return;
+  const t=audioCtx.currentTime+when;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(freq,t);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+dur+0.02);
+}
+function sfxHit(){initAudio();tone(800,0.05,'square',0.12);}
+function sfxCatch(){initAudio();tone(659,0.1,'triangle',0.15);tone(880,0.12,'triangle',0.13,0.08);}
+function sfxScale(){initAudio();tone(1400,0.04,'square',0.10);}
+function sfxFeed(){initAudio();tone(440,0.08,'triangle',0.14);tone(660,0.1,'triangle',0.14,0.06);}
+function sfxCoin(){initAudio();tone(880,0.06,'triangle',0.18);tone(1320,0.08,'triangle',0.14,0.04);}
+function sfxWin(){initAudio();[523,659,784,1046].forEach((n,i)=>tone(n,0.18,'triangle',0.18,i*0.12));}
+
+// фоновая музыка
+let musicGain=null,musicOn=false,musicTimer=null,musicIdx=0;
+const BG=[
+  {bass:130.81, mel:[523,0,659,0,784,0,659,0]},
+  {bass:174.61, mel:[698,0,880,0,698,0,587,0]},
+  {bass:196.00, mel:[784,0,659,0,587,0,494,0]},
+  {bass:130.81, mel:[523,0,659,0,523,0,392,0]}
+];
+function mn(f,when,dur,vol){
+  if(!audioCtx||!musicGain)return;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type='sine';o.frequency.setValueAtTime(f,when);
+  g.gain.setValueAtTime(0.0001,when);
+  g.gain.exponentialRampToValueAtTime(vol,when+0.05);
+  g.gain.exponentialRampToValueAtTime(0.0001,when+dur);
+  o.connect(g);g.connect(musicGain);o.start(when);o.stop(when+dur+0.02);
+}
+function scheduleBar(when){
+  if(!musicOn||!audioCtx)return;
+  const bar=BG[musicIdx%BG.length];const beat=0.45;
+  mn(bar.bass,when,beat*7.5,0.06);
+  for(let i=0;i<8;i++){const f=bar.mel[i];if(f>0) mn(f,when+beat*i,beat*1.4,0.04);}
+  musicIdx++;
+}
+function musicLoop(){
+  if(!musicOn||!audioCtx)return;
+  const now=audioCtx.currentTime;
+  scheduleBar(now+0.05);scheduleBar(now+3.65);
+  musicTimer=setTimeout(musicLoop,7200);
+}
+function startMusic(){
+  initAudio();if(!audioCtx)return;if(audioCtx.state==='suspended')audioCtx.resume();
+  if(musicOn)return;
+  if(!musicGain){musicGain=audioCtx.createGain();musicGain.gain.value=0.5;musicGain.connect(audioCtx.destination);}
+  musicOn=true;musicIdx=0;musicLoop();
+}
+function stopMusic(){musicOn=false;if(musicTimer){clearTimeout(musicTimer);musicTimer=null;}}
+
+// ============ СОСТОЯНИЕ ============
+let stage='menu'; // menu | fishing | cleaning | feeding | shop | win | lose
+let money=0;
+let caughtFish=[]; // [{size:'small'|'big', cleaned:false}]
+let TARGET_CATCH=7;
+
+// прокачка
+let upg={
+  line: 0,   // 0..3: длина лески
+  hook: 0,   // 0..2: качество крючка (меньше попаданий для большой)
+  knife: 0   // 0..2: размер ножа
+};
+const UPG_INFO={
+  line:  {name:'ЛЕСКА',  icon:'🎣', max:3, prices:[150,250,400], desc:'Дальше забрасывается'},
+  hook:  {name:'КРЮЧОК', icon:'🪝', max:2, prices:[200,350],     desc:'Меньше попаданий для большой'},
+  knife: {name:'НОЖ',    icon:'🔪', max:2, prices:[150,250],     desc:'Шире зона чистки'}
+};
+
+let mouseX=W/2,mouseY=H/2,mouseDown=false;
+
+cv.addEventListener('mousemove',e=>{
+  const r=cv.getBoundingClientRect();
+  mouseX=(e.clientX-r.left)*(W/r.width);
+  mouseY=(e.clientY-r.top)*(H/r.height);
+});
+cv.addEventListener('mousedown',()=>mouseDown=true);
+cv.addEventListener('mouseup',()=>mouseDown=false);
+// тач-управление
+function fishTouchPos(t){
+  const r=cv.getBoundingClientRect();
+  mouseX=(t.clientX-r.left)*(W/r.width);
+  mouseY=(t.clientY-r.top)*(H/r.height);
+}
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  if(t){
+    fishTouchPos(t);
+    mouseDown=true;
+    if(stage==='feeding' && creature){
+      if(Math.hypot(creature.x-mouseX, creature.y-mouseY)<70) feedCreature();
+    }
+  }
+},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0];if(t)fishTouchPos(t);},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();mouseDown=false;},{passive:false});
+
+// ============ ЭТАП 1: РЫБАЛКА ============
+let fish=[]; // {x,y,vx,size,hp,emoji}
+let hookY,hookCaught=null,hookGrabAnim=0;
+
+function startFishing(){
+  stage='fishing';
+  stageTxt.textContent='ЭТАП 1: РЫБАЛКА';
+  caughtFish=[];caughtEl.textContent='0/'+TARGET_CATCH;
+  fish=[];
+  // спавним рыб
+  for(let i=0;i<10;i++) spawnFish();
+  hookY=H*0.45;
+  hookCaught=null;
+  showStageLabel('ЭТАП 1: ЛОВИ РЫБУ');
+  loop();
+}
+function spawnFish(){
+  // глубина зависит от расположения, маленькие выше, большие ниже
+  const big=Math.random()<0.35;
+  const yMin=H*0.55,yMax=H*0.95;
+  const y=yMin+Math.random()*(yMax-yMin);
+  const size=big?'big':'small';
+  const dir=Math.random()<0.5?-1:1;
+  fish.push({
+    x:dir<0?W+30:-30, y,
+    vx:dir*(big?0.8:1.3+Math.random()*0.5),
+    size,
+    hp:big? Math.max(2, 5-upg.hook) : 1, // прокачка крючка снижает HP большой
+    maxHp:big?Math.max(2,5-upg.hook):1,
+    emoji:big?'🐠':'🐟',
+    r:big?22:14,
+    lastHit:0
+  });
+}
+
+function maxHookY(){
+  // длина лески по апгрейду
+  return H*0.55 + (H*0.4)*((upg.line+1)/4); // 0->H*0.65, 3->H*0.95
+}
+
+function updateFishing(){
+  // движение рыб
+  fish.forEach(f=>{f.x+=f.vx;f.lastHit=Math.max(0,f.lastHit-1);});
+  fish=fish.filter(f=>!(f.x<-50&&f.vx<0) && !(f.x>W+50&&f.vx>0));
+  while(fish.length<10) spawnFish();
+
+  // крючок следует за курсором по X, но Y ограничен лимитом лески, и не выше поверхности воды
+  const surfaceY=H*0.45;
+  let targetY=Math.max(surfaceY, Math.min(maxHookY(), mouseY));
+  hookY += (targetY-hookY)*0.25;
+  if(hookGrabAnim>0) hookGrabAnim--;
+
+  if(hookCaught){
+    // рыба поднимается с крючком на поверхность
+    hookCaught.x = mouseX;
+    hookCaught.y = hookY;
+    hookY -= 4;
+    if(hookY<=surfaceY+10){
+      // поймали!
+      caughtFish.push({size:hookCaught.size, cleaned:false});
+      sfxCatch();
+      hookCaught=null;
+      hookY=surfaceY;
+      caughtEl.textContent=caughtFish.length+'/'+TARGET_CATCH;
+      if(caughtFish.length>=TARGET_CATCH){
+        setTimeout(startCleaning, 600);
+        stage='waiting';
+      }
+    }
+    return;
+  }
+
+  // проверка столкновения крючка с рыбами (только когда курсор внутри воды)
+  if(mouseY>surfaceY){
+    fish.forEach(f=>{
+      if(f.lastHit>0)return;
+      const d=Math.hypot(f.x-mouseX, f.y-hookY);
+      if(d<f.r+8){
+        f.hp--;
+        f.lastHit=15; // не бить много раз за один кадр
+        sfxHit();
+        hookGrabAnim=8;
+        if(f.hp<=0){
+          hookCaught={...f};
+          // убрать из общего списка
+          fish=fish.filter(x=>x!==f);
+        }
+      }
+    });
+  }
+}
+
+function drawFishing(){
+  drawSeaBackground();
+  // лодка с рыбаком
+  drawBoat();
+  // леска от удочки до крючка
+  const rodX=W*0.5, rodY=H*0.32;
+  ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.globalAlpha=0.7;
+  ctx.beginPath();ctx.moveTo(rodX,rodY);ctx.lineTo(mouseX,hookY);ctx.stroke();
+  ctx.globalAlpha=1;
+  // крючок
+  ctx.font=hookGrabAnim>0?'24px serif':'22px serif';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🪝', mouseX, hookY);
+  // если несём пойманную рыбу — рисуем её
+  if(hookCaught){
+    ctx.font=(hookCaught.size==='big'?'40px':'28px')+' serif';
+    ctx.fillText(hookCaught.emoji, mouseX, hookY+18);
+  }
+  // рыбы
+  fish.forEach(f=>{
+    ctx.save();
+    ctx.translate(f.x,f.y);
+    if(f.vx<0) ctx.scale(-1,1);
+    ctx.font=(f.size==='big'?'40px':'28px')+' serif';
+    if(f.lastHit>0)ctx.globalAlpha=0.5;
+    ctx.fillText(f.emoji, 0, 0);
+    ctx.globalAlpha=1;
+    ctx.restore();
+    // полоска hp у большой рыбы
+    if(f.size==='big' && f.hp<f.maxHp){
+      const bw=40;
+      ctx.fillStyle='#000';ctx.fillRect(f.x-bw/2,f.y-26,bw,4);
+      ctx.fillStyle='#ff5544';ctx.fillRect(f.x-bw/2,f.y-26,bw*(f.hp/f.maxHp),4);
+    }
+  });
+  // отметка дальности лески
+  ctx.strokeStyle='rgba(255,220,80,.18)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(0,maxHookY());ctx.lineTo(W,maxHookY());ctx.stroke();
+  ctx.setLineDash([]);
+
+  // подсказка
+  hint('Веди мышью к рыбе. Маленькая 🐟 — 1 попадание, большая 🐠 — несколько.');
+}
+
+function drawSeaBackground(){
+  // небо
+  const sky=ctx.createLinearGradient(0,0,0,H*0.45);
+  sky.addColorStop(0,'#ffcc88');sky.addColorStop(1,'#ffe8c0');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H*0.45);
+  // солнце
+  ctx.beginPath();ctx.arc(W*0.78,H*0.18,42,0,7);
+  ctx.fillStyle='#fff0aa';ctx.shadowColor='#ffaa44';ctx.shadowBlur=40;ctx.fill();ctx.shadowBlur=0;
+  // облака
+  ctx.fillStyle='rgba(255,255,255,.7)';
+  drawCloud(160,80,40);drawCloud(420,120,32);drawCloud(640,60,28);
+  // вода
+  const sea=ctx.createLinearGradient(0,H*0.45,0,H);
+  sea.addColorStop(0,'#3aa0e0');sea.addColorStop(1,'#0a3060');
+  ctx.fillStyle=sea;ctx.fillRect(0,H*0.45,W,H*0.55);
+  // блики на воде
+  ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=1.5;
+  for(let i=0;i<20;i++){
+    const y=H*0.45+5+i*8;
+    ctx.beginPath();
+    for(let x=0;x<W;x+=20)ctx.lineTo(x,y+Math.sin((x+Date.now()/300+i*30)*0.02)*1.5);
+    ctx.stroke();
+  }
+}
+function drawCloud(x,y,r){
+  ctx.beginPath();
+  ctx.arc(x,y,r,0,7);ctx.arc(x+r*0.8,y-r*0.3,r*0.7,0,7);ctx.arc(x+r*1.5,y,r*0.8,0,7);
+  ctx.fill();
+}
+function drawBoat(){
+  const bx=W*0.5,by=H*0.40;
+  // лодка
+  ctx.fillStyle='#8b4513';
+  ctx.beginPath();
+  ctx.moveTo(bx-60,by);ctx.lineTo(bx+60,by);
+  ctx.lineTo(bx+45,by+18);ctx.lineTo(bx-45,by+18);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#a05a23';ctx.fillRect(bx-55,by-3,110,3);
+  // рыбак
+  ctx.font='32px serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText('🧑',bx-20,by);
+  // удочка
+  ctx.strokeStyle='#4a2a1a';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(bx-10,by-15);ctx.lineTo(bx,by-30);ctx.stroke();
+}
+
+function hint(txt){
+  ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(0,H-28,W,28);
+  ctx.fillStyle='#fff';ctx.font='14px Russo One';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(txt,W/2,H-14);
+}
+
+// ============ ЭТАП 2: ЧИСТКА ============
+let cleanFishIdx=0, scales=[];
+
+function startCleaning(){
+  stage='cleaning';
+  stageTxt.textContent='ЭТАП 2: ЧИСТКА';
+  cleanFishIdx=0;
+  startNextCleanFish();
+  showStageLabel('ЭТАП 2: ЧИСТИ РЫБУ');
+}
+function startNextCleanFish(){
+  if(cleanFishIdx>=caughtFish.length){
+    setTimeout(startFeeding, 500);
+    stage='waiting';
+    return;
+  }
+  scales=[];
+  const fSize = caughtFish[cleanFishIdx].size;
+  const n = fSize==='big' ? 14 : 8;
+  // тело рыбы (эмодзи 🐟/🐠) занимает примерно центральные ~60% по ширине и ~50% по высоте от шрифта
+  const fontSize = fSize==='big' ? 180 : 120;
+  const bodyW = fontSize*0.55;
+  const bodyH = fontSize*0.32;
+  for(let i=0;i<n;i++){
+    scales.push({
+      x: W/2 + (Math.random()-0.5)*bodyW,
+      y: H/2 + (Math.random()-0.5)*bodyH,
+      cut:false
+    });
+  }
+}
+
+function updateCleaning(){
+  const knifeRadius = 18 + upg.knife*8;
+  scales.forEach(s=>{
+    if(s.cut)return;
+    if(Math.hypot(s.x-mouseX, s.y-mouseY)<knifeRadius && mouseDown){
+      s.cut=true;sfxScale();
+    }
+  });
+  if(scales.length>0 && scales.every(s=>s.cut)){
+    caughtFish[cleanFishIdx].cleaned=true;
+    cleanFishIdx++;
+    scales=[]; // чтобы условие не сработало повторно
+    stage='waiting';
+    setTimeout(()=>{
+      if(cleanFishIdx>=caughtFish.length){
+        startFeeding();
+      } else {
+        stage='cleaning';
+        const fSize = caughtFish[cleanFishIdx].size;
+        const n = fSize==='big' ? 14 : 8;
+        const fontSize = fSize==='big' ? 180 : 120;
+        const bodyW = fontSize*0.55;
+        const bodyH = fontSize*0.32;
+        for(let i=0;i<n;i++){
+          scales.push({
+            x: W/2 + (Math.random()-0.5)*bodyW,
+            y: H/2 + (Math.random()-0.5)*bodyH,
+            cut:false
+          });
+        }
+      }
+    }, 350);
+  }
+}
+
+function drawCleaning(){
+  // фон — стол
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#3a2818');bg.addColorStop(1,'#1a1208');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#8b4513';ctx.fillRect(60,H*0.25,W-120,H*0.55);
+  ctx.strokeStyle='#5a2a0a';ctx.lineWidth=2;
+  for(let i=0;i<6;i++){ctx.beginPath();ctx.moveTo(60,H*0.25+i*40);ctx.lineTo(W-60,H*0.25+i*40);ctx.stroke();}
+
+  if(cleanFishIdx<caughtFish.length){
+    const fSize = caughtFish[cleanFishIdx].size;
+    ctx.font=(fSize==='big'?'180px':'120px')+' serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(fSize==='big'?'🐠':'🐟', W/2, H/2);
+  }
+
+  scales.forEach(s=>{
+    if(s.cut)return;
+    ctx.beginPath();ctx.arc(s.x,s.y,6,0,7);
+    ctx.fillStyle='#7ec8ff';
+    ctx.strokeStyle='#1080d0';ctx.lineWidth=1.5;
+    ctx.fill();ctx.stroke();
+  });
+
+  const knifeR = 18 + upg.knife*8;
+  ctx.beginPath();ctx.arc(mouseX,mouseY,knifeR,0,7);
+  ctx.fillStyle=mouseDown?'rgba(255,220,80,.25)':'rgba(255,255,255,.10)';
+  ctx.strokeStyle=mouseDown?'#ffd060':'#fff';ctx.lineWidth=2;
+  ctx.fill();ctx.stroke();
+  ctx.font='30px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🔪',mouseX+knifeR*0.6,mouseY-knifeR*0.6);
+
+  const total=scales.length, cut=scales.filter(s=>s.cut).length;
+  const shownIdx = Math.min(cleanFishIdx+1, caughtFish.length);
+  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(W/2-100,18,200,18);
+  if(total>0){ctx.fillStyle='#22dd44';ctx.fillRect(W/2-100,18,200*(cut/total),18);}
+  ctx.fillStyle='#fff';ctx.font='13px Orbitron';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(`Рыба ${shownIdx}/${caughtFish.length}  •  Чешуи: ${cut}/${total}`,W/2,27);
+
+  hint('Удерживай ЛКМ и води ножом по чешуйкам, чтобы срезать');
+}
+
+// ============ ЭТАП 3: КОРМЛЕНИЕ ============
+const CREATURES=[
+  {key:'dolphin', emoji:'🐬', name:'Дельфин',  need:2, color:'#7ec8ff', time:45},
+  {key:'shark',   emoji:'🦈', name:'Акула',    need:4, color:'#aaa',    time:55},
+  {key:'mermaid', emoji:'🧜‍♀️', name:'Русалка', need:3, color:'#ff66cc', time:40},
+  {key:'orca',    emoji:'🐋', name:'Косатка',  need:5, color:'#444',    time:65}
+];
+let creature=null, feedTimer=0, fishLeft=0, feedQueue=[];
+
+function startFeeding(){
+  stage='feeding';
+  stageTxt.textContent='ЭТАП 3: КОРМЛЕНИЕ';
+  // создаём очередь существ — пока есть рыбы
+  fishLeft = caughtFish.length;
+  feedQueue=[];
+  spawnCreature();
+  showStageLabel('ЭТАП 3: КОРМИ ГОСТЕЙ');
+}
+function spawnCreature(){
+  if(fishLeft<=0){endRound();return;}
+  // выбираем существо, которому хватит рыбы (но если осталась 1 — тоже отдаём что есть и оно уплывает)
+  const candidates=CREATURES.filter(c=>c.need<=fishLeft);
+  const pool=candidates.length?candidates:[CREATURES[0]]; // на крайняк дельфин
+  const c=pool[Math.floor(Math.random()*pool.length)];
+  creature={...c, x:-100, y:H*0.6, given:0, alive:true, leaving:false};
+  feedTimer=c.time*60; // в кадрах ~ 60fps
+}
+function updateFeeding(){
+  if(!creature)return;
+  // существо приплывает с левого края, затем зависает у лодки
+  const targetX=W*0.35;
+  if(creature.x<targetX && !creature.leaving) creature.x+=2;
+  if(creature.leaving){
+    creature.x-=3;
+    if(creature.x<-150){creature=null;setTimeout(spawnCreature, 500);return;}
+    return;
+  }
+  // таймер
+  feedTimer--;
+  if(feedTimer<=0 && creature.given<creature.need){
+    // уплыл голодный
+    creature.leaving=true;
+    sfxHit();
+    return;
+  }
+  // клик по существу — кидаем рыбу
+  // делаем через флаг (поднимется в обработчике клика)
+}
+function feedCreature(){
+  if(!creature || creature.leaving) return;
+  if(fishLeft<=0) return;
+  creature.given++;
+  fishLeft--;
+  sfxFeed();
+  caughtEl.textContent=fishLeft+' осталось';
+  if(creature.given>=creature.need){
+    // накормили!
+    money+=100;moneyEl.textContent=money;
+    sfxCoin();
+    creature.leaving=true;
+  }
+}
+cv.addEventListener('click',e=>{
+  if(stage!=='feeding'||!creature)return;
+  const r=cv.getBoundingClientRect();
+  const mx=(e.clientX-r.left)*(W/r.width);
+  const my=(e.clientY-r.top)*(H/r.height);
+  // клик в зоне существа
+  if(Math.hypot(creature.x-mx,creature.y-my)<70) feedCreature();
+});
+function drawFeeding(){
+  drawSeaBackground();
+  drawBoat();
+  // рыбы в ящике у рыбака
+  ctx.fillStyle='#5a3a18';
+  ctx.fillRect(W*0.6,H*0.36,80,30);
+  ctx.font='16px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  for(let i=0;i<Math.min(fishLeft,6);i++){
+    ctx.fillText('🐟', W*0.6+12+i*12, H*0.36+15);
+  }
+  ctx.fillStyle='#fff';ctx.font='12px Orbitron';
+  ctx.fillText('×'+fishLeft, W*0.6+40, H*0.36-5);
+
+  if(creature){
+    // существо
+    const size = creature.key==='orca'?72:(creature.key==='shark'?62:(creature.key==='mermaid'?54:50));
+    ctx.font=size+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(creature.emoji, creature.x, creature.y);
+    // мысль с количеством оставшейся рыбы
+    if(!creature.leaving){
+      const need=creature.need-creature.given;
+      const tx=creature.x, ty=creature.y-60;
+      ctx.fillStyle='rgba(255,255,255,.92)';
+      const w=130,hh=42;
+      roundRect(tx-w/2,ty-hh/2,w,hh,10,true,false);
+      ctx.fillStyle='#222';ctx.font='13px Russo One';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('Хочу рыбку!', tx, ty-8);
+      ctx.fillStyle='#c80';
+      ctx.fillText('Нужно ещё '+need+' 🐟', tx, ty+10);
+      // таймер
+      const tw=140;
+      ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(tx-tw/2,ty+22,tw,5);
+      ctx.fillStyle=feedTimer<300?'#ff4444':'#22dd44';
+      ctx.fillRect(tx-tw/2,ty+22,tw*(feedTimer/(creature.time*60)),5);
+    } else {
+      ctx.fillStyle='#fff';ctx.font='14px Orbitron';ctx.textAlign='center';
+      ctx.fillText(creature.given>=creature.need?'+100 💰':'😡 ушёл голодным', creature.x, creature.y-60);
+    }
+  }
+  hint('Кликай по существу, чтобы кинуть ему рыбу. Накорми до того, как уплывёт!');
+}
+
+function roundRect(x,y,w,h,r,fill,stroke){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+  if(fill)ctx.fill();if(stroke)ctx.stroke();
+}
+
+// ============ КОНЕЦ РАУНДА → МАГАЗИН ============
+function endRound(){
+  stage='shop';
+  stopMusic();
+  if(money>=2000){return showWin();}
+  showShop();
+}
+function showShop(){
+  let html=`<h1>МАГАЗИН</h1>
+    <h2>💰 У тебя $${money}</h2>
+    <p>Купи апгрейды для следующей смены или продолжай так</p>
+    <div class="shopGrid">`;
+  Object.keys(UPG_INFO).forEach(k=>{
+    const info=UPG_INFO[k];
+    const lvl=upg[k];
+    const isMax=lvl>=info.max;
+    const price=isMax?0:info.prices[lvl];
+    const canBuy=!isMax && money>=price;
+    html+=`<div class="shopItem">
+      <div class="icon">${info.icon}</div>
+      <div class="title">${info.name}</div>
+      <div class="lvl">Уровень ${lvl}/${info.max}</div>
+      <div class="price">${isMax?'—':'$'+price}</div>`;
+    if(isMax){html+=`<div class="maxLbl">МАКС</div>`;}
+    else html+=`<button class="buyBtn" data-k="${k}" ${canBuy?'':'disabled'}>КУПИТЬ</button>`;
+    html+=`<div style="font-size:11px;color:#9ab;margin-top:6px;text-align:center;">${info.desc}</div>
+    </div>`;
+  });
+  html+=`</div>
+    <button class="btn" id="next">НОВАЯ СМЕНА</button>`;
+  screen.innerHTML=html;
+  screen.classList.remove('hidden');
+  screen.querySelectorAll('.buyBtn').forEach(b=>{
+    b.onclick=()=>{
+      const k=b.dataset.k, info=UPG_INFO[k];
+      const price=info.prices[upg[k]];
+      if(money>=price && upg[k]<info.max){
+        money-=price; upg[k]++; sfxCoin(); moneyEl.textContent=money;
+        showShop(); // перерисовать
+      }
+    };
+  });
+  document.getElementById('next').onclick=()=>{
+    screen.classList.add('hidden');
+    startMusic();
+    startFishing();
+  };
+}
+
+function showWin(){
+  stage='win';
+  stopMusic();sfxWin();
+  screen.innerHTML=`<h1>🏆 ПОБЕДА! 🏆</h1>
+    <div style="font-size:110px;text-shadow:0 0 40px #ffd060;">🎣</div>
+    <p style="color:#ffd060;font-size:18px;letter-spacing:2px;">МАСТЕР-РЫБАК!</p>
+    <p>Ты заработал <b>$${money}</b> и накормил всех морских жителей!</p>
+    <button class="btn" id="retry">ИГРАТЬ СНОВА</button>`;
+  screen.classList.remove('hidden');
+  document.getElementById('retry').onclick=()=>{
+    money=0;upg={line:0,hook:0,knife:0};moneyEl.textContent=0;
+    screen.classList.add('hidden');startMusic();startFishing();
+  };
+}
+
+// ============ ЦИКЛ ============
+function showStageLabel(text){
+  stageLabel.textContent=text;
+  stageLabel.classList.add('show');
+  setTimeout(()=>stageLabel.classList.remove('show'),1400);
+}
+
+function loop(){
+  if(stage==='fishing'){updateFishing();drawFishing();}
+  else if(stage==='cleaning'){updateCleaning();drawCleaning();}
+  else if(stage==='feeding'){updateFeeding();drawFeeding();}
+  else if(stage==='waiting'){
+    // продолжаем рисовать, чтобы экран не замирал
+    if(caughtFish.length>0 && cleanFishIdx<=caughtFish.length){
+      // если предыдущая стадия была чистка — продолжаем её рисовать
+      drawCleaning();
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+// ============ МЕНЮ ============
+function showMenu(){
+  stage='menu';
+  stopMusic();
+  screen.innerHTML=`<h1>РЫБАК</h1>
+    <h2>морская смена</h2>
+    <p>Каждая смена — 3 этапа:<br>
+    🎣 <b>Лови</b> 7 рыб крючком (маленькие 🐟 — 1 удар, большие 🐠 — несколько)<br>
+    🔪 <b>Чисти</b> рыбу ножом, срезай все чешуйки<br>
+    🐬 <b>Корми</b> морских жителей за <b>$100</b> каждого</p>
+    <p>В магазине между сменами покупай апгрейды: длиннее леска, лучше крючок, шире нож.<br>Дойди до <b>$2000</b> — станешь мастером!</p>
+    <p style="font-size:13px;"><span class="key">мышь</span> — управление крючком, ножом, кормление кликом</p>
+    <button class="btn" id="start">НАЧАТЬ СМЕНУ</button>`;
+  screen.classList.remove('hidden');
+  document.getElementById('start').onclick=()=>{
+    screen.classList.add('hidden');
+    startMusic();
+    startFishing();
+  };
+}
+
+showMenu();
+loop();
+</script>
+</body>
+</html>

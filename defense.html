@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ЗАЩИТА БАЗЫ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@600;800;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;user-select:none;}
+  body{font-family:'Russo One',sans-serif;background:#0a0c10;min-height:100vh;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  #wrap{position:relative;width:880px;max-width:98vw;height:580px;max-height:92vh;
+    border-radius:14px;overflow:hidden;background:#0a0c10;
+    box-shadow:0 0 60px rgba(255,80,40,.3);cursor:crosshair;touch-action:none;}
+  canvas{display:block;width:100%;height:100%;}
+  #hud{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;
+    justify-content:space-between;padding:10px 18px;color:#f0e0d0;font-family:'Orbitron';
+    font-weight:800;font-size:16px;letter-spacing:1px;text-shadow:0 0 8px #000;
+    background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);pointer-events:none;}
+  #hud .red{color:#ff5566;}
+  #hud .pink{color:#ff88cc;}
+  #hud .gold{color:#ffd060;}
+  #hud .green{color:#0fff80;}
+  #screen{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;color:#dce;padding:30px;
+    background:radial-gradient(ellipse at center,#2a0a08 0%,#04020a 80%);}
+  #screen.hidden{display:none;}
+  h1{font-size:52px;color:#ff8844;text-shadow:0 0 30px #c44020;margin-bottom:8px;letter-spacing:5px;font-family:'Orbitron';}
+  h2{font-size:18px;color:#aab;letter-spacing:3px;margin-bottom:18px;font-family:'Orbitron';}
+  p{font-size:15px;line-height:1.7;margin-bottom:14px;color:#cab;max-width:580px;}
+  .key{background:#3a1810;border:1px solid #c84830;border-radius:4px;padding:2px 9px;color:#fca;font-family:'Russo One';}
+  .btn{background:linear-gradient(135deg,#ff7733,#aa3311);color:#fff;border:none;
+    border-radius:8px;padding:14px 44px;font-family:'Orbitron';font-size:20px;font-weight:900;
+    letter-spacing:3px;cursor:pointer;box-shadow:0 0 28px rgba(255,100,40,.55);text-transform:uppercase;}
+  .btn:active{transform:scale(.96);}
+  .record{color:#ffd060;font-size:18px;margin-top:10px;font-family:'Orbitron';}
+  #healPopup{position:absolute;top:30%;left:50%;transform:translate(-50%,-50%);z-index:8;
+    color:#0fff80;font-family:'Orbitron';font-weight:900;font-size:42px;letter-spacing:4px;
+    text-shadow:0 0 30px #0fa060;opacity:0;pointer-events:none;transition:opacity .3s, transform .8s;}
+  #healPopup.show{opacity:1;transform:translate(-50%,-100%);}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv" width="880" height="540"></canvas>
+  <div id="hud">
+    <div class="red">❤ <span id="hp">100</span>/<span id="maxhp">100</span></div>
+    <div class="pink">💀 КИЛЛЫ <span id="kills">0</span></div>
+    <div>🌊 ВОЛНА <span id="wave">1</span></div>
+    <div class="gold">⭐ <span id="rec">0</span></div>
+  </div>
+  <div id="healPopup"></div>
+  <div id="screen"></div>
+</div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+const hpEl=document.getElementById('hp');
+const maxhpEl=document.getElementById('maxhp');
+const killsEl=document.getElementById('kills');
+const waveEl=document.getElementById('wave');
+const recEl=document.getElementById('rec');
+const screen=document.getElementById('screen');
+const healPopup=document.getElementById('healPopup');
+
+// ============ АУДИО (создаём контекст под звук и закрываем) ============
+function playTone(freqStart, freqEnd, dur, type='square', vol=0.18){
+  let ctx;
+  try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){return;}
+  const t=ctx.currentTime;
+  const o=ctx.createOscillator(),g=ctx.createGain();
+  o.type=type;
+  o.frequency.setValueAtTime(freqStart,t);
+  if(freqEnd!==freqStart) o.frequency.exponentialRampToValueAtTime(Math.max(20,freqEnd),t+dur);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g);g.connect(ctx.destination);
+  o.start(t);o.stop(t+dur+0.02);
+  setTimeout(()=>{try{ctx.close();}catch(e){}}, (dur+0.1)*1000);
+}
+function sfxShoot(){ playTone(900, 200, 0.06, 'sawtooth', 0.18); }
+function sfxHit(){ playTone(180, 60, 0.10, 'square', 0.18); }
+function sfxKill(){
+  playTone(523, 523, 0.06, 'triangle', 0.18);
+  setTimeout(()=>playTone(784, 784, 0.08, 'triangle', 0.18), 50);
+}
+function sfxHeal(){
+  [523, 659, 880].forEach((f,i)=>setTimeout(()=>playTone(f,f,0.1,'triangle',0.16),i*50));
+}
+function sfxHurt(){ playTone(200, 80, 0.18, 'sawtooth', 0.22); }
+function sfxWave(){
+  [392, 523, 659].forEach((f,i)=>setTimeout(()=>playTone(f,f,0.15,'triangle',0.18),i*100));
+}
+function sfxOver(){
+  [523,440,349,294].forEach((f,i)=>setTimeout(()=>playTone(f,f,0.25,'sawtooth',0.20),i*180));
+}
+
+// ============ ФОНОВАЯ МУЗЫКА ============
+let musicOn=false;
+let musicStep=0;
+let musicInterval=null;
+
+// Драйвовая боевая мелодия. Каждый шаг = 1/8 такта.
+// Тональность Am. 32 шага = 4 такта.
+// Структура шага: [melody_freq, bass_freq, drum] где drum: 0=нет, 1=кик, 2=снейр, 3=хэт
+const SONG=[
+  // такт 1 (Am)
+  [440,110,1],[0,0,3],   [523,0,2],  [0,0,3],  [659,110,1],[0,0,3],   [523,0,2],  [659,0,3],
+  // такт 2 (F)
+  [698,87,1], [0,0,3],   [880,0,2],  [0,0,3],  [698,87,1], [0,0,3],   [880,0,2],  [1046,0,3],
+  // такт 3 (G)
+  [784,98,1], [0,0,3],   [659,0,2],  [0,0,3],  [587,98,1], [0,0,3],   [494,0,2],  [587,0,3],
+  // такт 4 (Am - возврат)
+  [440,110,1],[523,0,3], [659,0,2],  [784,0,3],[880,110,1],[784,0,3], [659,0,2],  [523,0,3]
+];
+
+function kickSound(){
+  // кик-барабан: короткий низкий "бум"
+  let ctx;
+  try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){return;}
+  const t=ctx.currentTime;
+  const o=ctx.createOscillator(),g=ctx.createGain();
+  o.type='sine';
+  o.frequency.setValueAtTime(120,t);
+  o.frequency.exponentialRampToValueAtTime(40,t+0.10);
+  g.gain.setValueAtTime(0.25,t);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+0.12);
+  o.connect(g);g.connect(ctx.destination);
+  o.start(t);o.stop(t+0.14);
+  setTimeout(()=>{try{ctx.close();}catch(e){}}, 200);
+}
+function snareSound(){
+  // снейр: шумовой удар
+  let ctx;
+  try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){return;}
+  const t=ctx.currentTime;
+  const bufSize=ctx.sampleRate*0.10;
+  const buf=ctx.createBuffer(1,bufSize,ctx.sampleRate);
+  const data=buf.getChannelData(0);
+  for(let i=0;i<bufSize;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/bufSize,2);
+  const src=ctx.createBufferSource();src.buffer=buf;
+  const g=ctx.createGain();g.gain.value=0.18;
+  src.connect(g);g.connect(ctx.destination);src.start(t);
+  setTimeout(()=>{try{ctx.close();}catch(e){}}, 200);
+}
+function hatSound(){
+  // хэт: очень короткий высокий шум
+  let ctx;
+  try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){return;}
+  const t=ctx.currentTime;
+  const bufSize=ctx.sampleRate*0.03;
+  const buf=ctx.createBuffer(1,bufSize,ctx.sampleRate);
+  const data=buf.getChannelData(0);
+  for(let i=0;i<bufSize;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/bufSize,4);
+  const src=ctx.createBufferSource();src.buffer=buf;
+  const g=ctx.createGain();g.gain.value=0.08;
+  src.connect(g);g.connect(ctx.destination);src.start(t);
+  setTimeout(()=>{try{ctx.close();}catch(e){}}, 100);
+}
+
+function musicStepPlay(){
+  if(!musicOn)return;
+  const step=SONG[musicStep%SONG.length];
+  musicStep++;
+  const [mel,bass,drum]=step;
+  // мелодия — короткая нота
+  if(mel>0) playTone(mel,mel,0.20,'square',0.09);
+  // бас — низкая длинная нота
+  if(bass>0) playTone(bass,bass,0.35,'triangle',0.14);
+  // барабан
+  if(drum===1) kickSound();
+  else if(drum===2) snareSound();
+  else if(drum===3) hatSound();
+}
+
+function startMusic(){
+  if(musicOn)return;
+  musicOn=true;musicStep=0;
+  if(musicInterval) clearInterval(musicInterval);
+  // 180ms на шаг — драйвовый темп ~ 165 BPM в 8x
+  musicInterval=setInterval(musicStepPlay, 180);
+}
+function stopMusic(){
+  musicOn=false;
+  if(musicInterval){clearInterval(musicInterval);musicInterval=null;}
+}
+
+// ============ ИГРОК ============
+const player={
+  x:W/2, y:H/2, r:24,
+  hp:200, maxHp:200,
+  weapon:'pistol',
+  fireCd:0,
+  hurtCd:0,
+  ang:0,
+  dmg:25
+};
+
+// ============ СОСТОЯНИЕ ============
+let enemies=[];
+let projectiles=[]; // {x,y,vx,vy,life,dmg,fromPlayer}
+let particles=[];
+let kills=0;
+let wave=1;
+let waveSpawnsLeft=0;
+let spawnTimer=0;
+let waveBreakTimer=0; // пауза между волнами
+let inWave=false;
+let bossSpawnedThisWave=false;
+let mouseX=W/2, mouseY=H/2-100, mouseDown=false;
+let gameOver=false;
+let record=0;
+try{record=parseInt(localStorage.getItem('defenseRecord'))||0;}catch(e){record=0;}
+
+// ============ УПРАВЛЕНИЕ ============
+cv.addEventListener('mousemove',e=>{
+  const r=cv.getBoundingClientRect();
+  mouseX=(e.clientX-r.left)*(W/r.width);
+  mouseY=(e.clientY-r.top)*(H/r.height);
+});
+cv.addEventListener('mousedown',()=>{mouseDown=true;});
+cv.addEventListener('mouseup',()=>{mouseDown=false;});
+// тач-управление: палец двигает прицел и стреляет
+function touchPos(t){
+  const r=cv.getBoundingClientRect();
+  mouseX=(t.clientX-r.left)*(W/r.width);
+  mouseY=(t.clientY-r.top)*(H/r.height);
+}
+cv.addEventListener('touchstart',e=>{e.preventDefault();if(e.touches[0]){touchPos(e.touches[0]);mouseDown=true;}},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches[0])touchPos(e.touches[0]);},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();mouseDown=false;},{passive:false});
+
+
+// ============ ТИПЫ ВРАГОВ ============
+// Бегуны (двигаются), Толстяки (медленные с большим HP), Быстрые, Стрелки (стоят и стреляют)
+const ENEMY_TYPES={
+  runner:  {hp:30, dmg:6,  speed:0.9, r:18, color:'#aaff44', emoji:'🧟', range:30,  fireCd:30, score:1},
+  fast:    {hp:18, dmg:5,  speed:1.6, r:14, color:'#ff7eea', emoji:'🐺', range:25,  fireCd:30, score:1},
+  tank:    {hp:120,dmg:13, speed:0.4, r:26, color:'#aa6644', emoji:'🐗', range:30,  fireCd:45, score:2},
+  shooter: {hp:25, dmg:9,  speed:0.25,r:16, color:'#ff5566', emoji:'🥷', range:380, fireCd:90, score:2, stops:true},
+  boss:    {hp:1000,dmg:21,speed:0.18,r:42, color:'#ff2244', emoji:'👹', range:40,  fireCd:50, score:5}
+};
+
+function spawnEnemy(){
+  const r=Math.random();
+  let type;
+  // боссовая волна (кратна 5): сначала босс, потом 4 стрелка
+  if(wave>0 && wave%5===0){
+    if(!bossSpawnedThisWave){
+      type='boss';
+      bossSpawnedThisWave=true;
+    } else {
+      type='shooter';
+    }
+  }
+  else if(wave>=3 && r<0.20) type='shooter';
+  else if(wave>=2 && r<0.40) type='tank';
+  else if(r<0.30) type='fast';
+  else type='runner';
+
+  // точка спавна — на видимой зоне, но не вплотную к игроку
+  const ang=Math.random()*Math.PI*2;
+  // расстояние: достаточно далеко от игрока (в 2 раза дальше чем было)
+  const minDist=400, maxDist=520;
+  const dist=minDist+Math.random()*(maxDist-minDist);
+  let x=W/2 + Math.cos(ang)*dist;
+  let y=H/2 + Math.sin(ang)*dist;
+  // чтобы не вышли за края экрана
+  const margin=30;
+  x = Math.max(margin, Math.min(W-margin, x));
+  y = Math.max(margin, Math.min(H-margin, y));
+  const stat=ENEMY_TYPES[type];
+  const hpScale = 1 + (wave-1)*0.1; // на сильных волнах враги толще
+  // место "остановки" для стрелка
+  let stopDist=0;
+  if(stat.stops){stopDist = 240 + Math.random()*80;}
+  enemies.push({
+    type, x, y,
+    hp:Math.floor(stat.hp*hpScale), maxHp:Math.floor(stat.hp*hpScale),
+    dmg:stat.dmg, speed:stat.speed, r:stat.r,
+    color:stat.color, emoji:stat.emoji,
+    range:stat.range, fireCd:Math.floor(Math.random()*stat.fireCd),
+    fireCdMax:stat.fireCd,
+    score:stat.score,
+    stops:stat.stops||false, stopDist,
+    arrived:false, // для стрелков — дошёл ли до позиции стрельбы
+    hurt:0
+  });
+}
+
+// ============ ВОЛНЫ ============
+function startWave(){
+  inWave=true;
+  bossSpawnedThisWave=false;
+  // на боссовых волнах — ровно 5 (босс + 4 стрелка)
+  if(wave>0 && wave%5===0){
+    waveSpawnsLeft = 5;
+  } else {
+    waveSpawnsLeft = 4 + wave;
+  }
+  spawnTimer = 0;
+  sfxWave();
+}
+function endWave(){
+  inWave=false;
+  waveBreakTimer=180; // ровно 3 секунды паузы при 60 fps
+  // в перерыве небольшое восстановление
+  player.hp = Math.min(player.maxHp, player.hp + 20);
+}
+
+// ============ СТРЕЛЬБА ИГРОКА ============
+function shootPlayer(){
+  if(player.fireCd>0)return;
+  const dx=mouseX-player.x, dy=mouseY-player.y;
+  const d=Math.hypot(dx,dy);
+  if(d<5)return;
+  const vx=dx/d*12, vy=dy/d*12;
+  projectiles.push({x:player.x, y:player.y, vx, vy, life:50, dmg:player.dmg, fromPlayer:true});
+  sfxShoot();
+  player.fireCd=12;
+}
+
+// ============ ОБНОВЛЕНИЕ ============
+function update(){
+  if(gameOver)return;
+  player.ang = Math.atan2(mouseY-player.y, mouseX-player.x);
+  player.fireCd--;
+  player.hurtCd--;
+  if(mouseDown) shootPlayer();
+
+  // волны
+  if(inWave){
+    if(waveSpawnsLeft>0){
+      spawnTimer--;
+      if(spawnTimer<=0){
+        spawnEnemy();
+        waveSpawnsLeft--;
+        spawnTimer = Math.max(20, 60-wave*2);
+      }
+    } else if(enemies.length===0){
+      endWave();
+    }
+  } else {
+    waveBreakTimer--;
+    if(waveBreakTimer<=0){
+      // если это уже не первая волна — увеличиваем; для первой просто запускаем
+      if(kills>0 || wave>1) wave++;
+      waveEl.textContent=wave;
+      startWave();
+    }
+  }
+
+  // враги
+  enemies.forEach(en=>{
+    if(en.hurt>0) en.hurt--;
+    const dx=player.x-en.x, dy=player.y-en.y;
+    const d=Math.hypot(dx,dy);
+    if(en.stops){
+      // стрелок: медленно подходит до stopDist, потом стоит на месте
+      if(d>en.stopDist+5){
+        en.x += dx/d * en.speed;
+        en.y += dy/d * en.speed;
+      } else {
+        en.arrived=true;
+      }
+      // стреляет в любом случае, если игрок в радиусе
+      en.fireCd--;
+      if(en.fireCd<=0 && d<en.range){
+        const a=Math.atan2(player.y-en.y, player.x-en.x);
+        const sp=6;
+        projectiles.push({
+          x:en.x, y:en.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+          life:80, dmg:en.dmg, fromPlayer:false
+        });
+        en.fireCd=en.fireCdMax;
+      }
+    } else {
+      // бегущие — прут к игроку
+      if(d>en.range){
+        en.x += dx/d * en.speed;
+        en.y += dy/d * en.speed;
+      } else {
+        // в радиусе ближнего боя — бьёт
+        en.fireCd--;
+        if(en.fireCd<=0){
+          if(player.hurtCd<=0){
+            player.hp-=en.dmg;
+            player.hurtCd=20;
+            sfxHurt();
+            if(player.hp<=0){endGame();return;}
+          }
+          en.fireCd=en.fireCdMax;
+        }
+      }
+    }
+  });
+
+  // снаряды
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p=projectiles[i];
+    p.x+=p.vx; p.y+=p.vy;
+    p.life--;
+    if(p.life<=0 || p.x<-30 || p.x>W+30 || p.y<-30 || p.y>H+30){
+      projectiles.splice(i,1);continue;
+    }
+    if(p.fromPlayer){
+      let hit=false;
+      for(const en of enemies){
+        if(Math.hypot(en.x-p.x, en.y-p.y) < en.r+4){
+          en.hp-=p.dmg;
+          en.hurt=8;
+          sfxHit();
+          // отталкивание
+          const a=Math.atan2(p.vy,p.vx);
+          en.x+=Math.cos(a)*2; en.y+=Math.sin(a)*2;
+          if(en.hp<=0){
+            killEnemy(en);
+          }
+          hit=true; break;
+        }
+      }
+      if(hit){projectiles.splice(i,1); continue;}
+    } else {
+      // в игрока
+      if(Math.hypot(player.x-p.x, player.y-p.y) < player.r+3){
+        if(player.hurtCd<=0){
+          player.hp-=p.dmg;
+          player.hurtCd=20;
+          sfxHurt();
+          if(player.hp<=0){endGame();return;}
+        }
+        projectiles.splice(i,1);
+      }
+    }
+  }
+
+  // удаляем мёртвых
+  enemies = enemies.filter(en=>en.hp>0);
+
+  // частицы
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life--;});
+  particles=particles.filter(p=>p.life>0);
+
+  updHud();
+}
+
+function killEnemy(en){
+  kills++;
+  sfxKill();
+  // частицы крови
+  for(let i=0;i<12;i++){
+    const a=Math.random()*Math.PI*2,sp=Math.random()*4+1;
+    particles.push({x:en.x,y:en.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,life:30,color:'#c33'});
+  }
+  // каждый 3-й убитый — +10 HP к максимуму
+  if(kills%3===0){
+    player.hp = Math.min(player.maxHp, player.hp + 20);
+    showHeal('+20 HP');
+    sfxHeal();
+  }
+  if(kills>record){
+    record=kills;
+    try{localStorage.setItem('defenseRecord',record);}catch(e){}
+  }
+}
+
+function showHeal(text){
+  healPopup.textContent=text;
+  healPopup.classList.add('show');
+  clearTimeout(healPopup._tm);
+  healPopup._tm=setTimeout(()=>healPopup.classList.remove('show'),900);
+}
+
+function updHud(){
+  hpEl.textContent=Math.max(0,player.hp);
+  maxhpEl.textContent=player.maxHp;
+  killsEl.textContent=kills;
+  recEl.textContent=record;
+}
+
+// ============ РЕНДЕР ============
+function render(){
+  // фон — кратерная пустошь
+  const sky=ctx.createRadialGradient(W/2,H/2,80,W/2,H/2,W*0.7);
+  sky.addColorStop(0,'#3a1a10');sky.addColorStop(0.6,'#1a0a06');sky.addColorStop(1,'#08040a');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+  // сетка-следы
+  ctx.strokeStyle='rgba(120,60,40,.08)';ctx.lineWidth=1;
+  for(let i=0;i<20;i++){
+    const r=40+i*30;
+    ctx.beginPath();ctx.arc(W/2,H/2,r,0,7);ctx.stroke();
+  }
+  // мешки с песком вокруг базы
+  ctx.fillStyle='#5a4020';
+  for(let i=0;i<14;i++){
+    const a=i/14*Math.PI*2;
+    const bx=W/2+Math.cos(a)*55, by=H/2+Math.sin(a)*55;
+    ctx.beginPath();ctx.ellipse(bx,by,12,7,a,0,7);ctx.fill();
+  }
+  // база (площадка)
+  ctx.beginPath();ctx.arc(W/2,H/2,42,0,7);
+  ctx.fillStyle='#3a2a1a';ctx.fill();
+  ctx.strokeStyle='#6a4a2a';ctx.lineWidth=3;ctx.stroke();
+
+  // частицы (под игроком)
+  particles.forEach(p=>{
+    ctx.globalAlpha=Math.max(0,p.life/30);
+    ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);
+  });
+  ctx.globalAlpha=1;
+
+  // враги
+  enemies.forEach(en=>{
+    // тень
+    ctx.fillStyle='rgba(0,0,0,.4)';
+    ctx.beginPath();ctx.ellipse(en.x,en.y+en.r*0.8,en.r*0.7,4,0,0,7);ctx.fill();
+    // тело
+    ctx.save();
+    if(en.hurt>0) ctx.globalAlpha=0.55;
+    ctx.font=(en.r*2)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(en.emoji,en.x,en.y);
+    ctx.restore();
+    ctx.globalAlpha=1;
+    // hp bar
+    if(en.hp<en.maxHp){
+      ctx.fillStyle='#000';ctx.fillRect(en.x-22,en.y-en.r-10,44,5);
+      ctx.fillStyle=en.type==='boss'?'#f44':(en.type==='tank'?'#fc4':'#0f8');
+      ctx.fillRect(en.x-22,en.y-en.r-10,44*(en.hp/en.maxHp),5);
+    }
+  });
+
+  // снаряды
+  projectiles.forEach(p=>{
+    ctx.save();
+    if(p.fromPlayer){
+      ctx.fillStyle='#ffeb44';
+      ctx.beginPath();ctx.arc(p.x,p.y,4,0,7);ctx.fill();
+      ctx.strokeStyle='rgba(255,230,80,.6)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(p.x-p.vx*0.6,p.y-p.vy*0.6);ctx.lineTo(p.x,p.y);ctx.stroke();
+    } else {
+      ctx.fillStyle='#ff4444';
+      ctx.beginPath();ctx.arc(p.x,p.y,5,0,7);ctx.fill();
+      ctx.strokeStyle='rgba(255,80,80,.6)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(p.x-p.vx*0.5,p.y-p.vy*0.5);ctx.lineTo(p.x,p.y);ctx.stroke();
+    }
+    ctx.restore();
+  });
+
+  // игрок — солдат с пистолетом
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  ctx.rotate(player.ang);
+  if(player.hurtCd>0 && Math.floor(player.hurtCd/4)%2) ctx.globalAlpha=0.5;
+  // ствол
+  ctx.fillStyle='#222';ctx.fillRect(10,-3,22,6);
+  ctx.fillStyle='#444';ctx.fillRect(28,-2,4,4);
+  ctx.restore();
+  // тело
+  ctx.font='40px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  if(player.hurtCd>0 && Math.floor(player.hurtCd/4)%2) ctx.globalAlpha=0.5;
+  ctx.fillText('💂',player.x,player.y);
+  ctx.globalAlpha=1;
+
+  // HP bar большой
+  ctx.fillStyle='#000';ctx.fillRect(player.x-30,player.y+player.r+8,60,7);
+  const hpPct = Math.max(0,player.hp/player.maxHp);
+  ctx.fillStyle = hpPct>0.5?'#0f8':(hpPct>0.25?'#fc4':'#f44');
+  ctx.fillRect(player.x-30,player.y+player.r+8,60*hpPct,7);
+
+  // прицел
+  ctx.strokeStyle='rgba(255,80,80,.8)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(mouseX,mouseY,12,0,7);ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(mouseX-18,mouseY);ctx.lineTo(mouseX-7,mouseY);
+  ctx.moveTo(mouseX+7,mouseY);ctx.lineTo(mouseX+18,mouseY);
+  ctx.moveTo(mouseX,mouseY-18);ctx.lineTo(mouseX,mouseY-7);
+  ctx.moveTo(mouseX,mouseY+7);ctx.lineTo(mouseX,mouseY+18);ctx.stroke();
+
+  // надпись паузы между волнами
+  if(!inWave && !gameOver && waveBreakTimer>0){
+    const nextWave = wave + 1;
+    const secondsLeft = Math.ceil(waveBreakTimer/60);
+    // полупрозрачный фон
+    ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(0,H/2-90,W,180);
+    // главная надпись — пульсирующая красная
+    const pulse = 0.7 + Math.sin(Date.now()/120)*0.3;
+    ctx.fillStyle=`rgba(255,80,60,${pulse})`;
+    ctx.font='bold 38px Orbitron';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.shadowColor='#ff0000';ctx.shadowBlur=20;
+    ctx.fillText('⚠ ОСТОРОЖНО!!! ⚠', W/2, H/2-40);
+    ctx.shadowBlur=0;
+    // подзаголовок
+    ctx.fillStyle='#ffcc66';
+    ctx.font='bold 26px Orbitron';
+    ctx.fillText('ВРАГИ НАСТУПАЮТ. '+nextWave, W/2, H/2+5);
+    // обратный отсчёт
+    ctx.fillStyle='#ffffff';
+    ctx.font='bold 22px Orbitron';
+    ctx.fillText('Старт через '+secondsLeft+'...', W/2, H/2+45);
+  }
+}
+
+function loop(){
+  if(gameOver) return;
+  update();render();
+  requestAnimationFrame(loop);
+}
+
+function endGame(){
+  gameOver=true;
+  stopMusic();
+  sfxOver();
+  if(kills>record){record=kills;try{localStorage.setItem('defenseRecord',record);}catch(e){}}
+  screen.innerHTML=`<h1>☠ БАЗА ПАЛА ☠</h1>
+    <p>Враг прорвал твою оборону.</p>
+    <p>Убито врагов: <b>${kills}</b><br>Дошёл до волны: <b>${wave}</b><br>Макс. HP: <b>${player.maxHp}</b><br>Рекорд: <b>${record}</b></p>
+    <button class="btn" id="again">ЗАЩИЩАТЬ СНОВА</button>`;
+  screen.classList.remove('hidden');
+  document.getElementById('again').onclick=startGame;
+}
+
+function startGame(){
+  gameOver=false;
+  player.hp=200; player.maxHp=200; player.dmg=25;
+  player.fireCd=0; player.hurtCd=0;
+  enemies=[];projectiles=[];particles=[];
+  kills=0; wave=1;
+  inWave=false;
+  waveBreakTimer=180;
+  waveEl.textContent=wave;
+  updHud();
+  screen.classList.add('hidden');
+  startMusic();
+  // первая волна стартует через 3 секунды через основной таймер
+  loop();
+}
+
+function showMenu(){
+  screen.innerHTML=`<h1>ЗАЩИТА БАЗЫ</h1>
+    <h2>выживай как можно дольше</h2>
+    <p>Старт <b>200 HP</b>, урон <b>25</b>. Каждый <b>3-й убитый</b> = <b>+20 HP</b>. Боссы на волнах 5, 10, 15…</p>
+    <p style="font-size:14px;color:#aab;">
+    💻 <span class="key">мышь</span> + <span class="key">ЛКМ</span> &nbsp; 📱 <span class="key">палец</span> по экрану<br>
+    Враги: 🧟 бегун, 🐺 быстрый, 🐗 толстяк, 🥷 стрелок, 👹 босс</p>
+    ${record>0?`<div class="record">Рекорд: ${record} убийств</div>`:''}
+    <button class="btn" id="start">ВСТАТЬ НА ЗАЩИТУ</button>`;
+  screen.classList.remove('hidden');
+  document.getElementById('start').onclick=startGame;
+}
+
+updHud();
+showMenu();
+</script>
+</body>
+</html>
