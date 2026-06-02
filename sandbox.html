@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ПЕСОЧНИЦА</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@600;800;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;user-select:none;}
+  body{font-family:'Russo One',sans-serif;background:#0a0a0e;min-height:100vh;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  #wrap{position:relative;width:880px;max-width:98vw;height:580px;max-height:92vh;
+    border-radius:14px;overflow:hidden;background:#1a2030;
+    box-shadow:0 0 60px rgba(80,200,140,.3);}
+  #stage{position:absolute;top:0;left:0;right:0;bottom:90px;
+    background:linear-gradient(180deg,#5dc2eb 0%,#a6dff5 60%,#c6e6c8 95%,#9dc890 100%);
+    cursor:crosshair;touch-action:none;}
+  canvas{display:block;width:100%;height:100%;}
+  /* нижняя панель инструментов */
+  #toolbar{position:absolute;bottom:0;left:0;right:0;height:90px;
+    background:linear-gradient(180deg,#161a22,#0a0c12);border-top:2px solid #2a3a44;
+    display:flex;align-items:center;gap:3px;padding:6px;overflow-x:auto;}
+  .tool{flex:0 0 auto;width:62px;height:74px;border-radius:8px;border:2px solid #2a3a44;
+    background:linear-gradient(180deg,#1a2230,#0a1018);color:#cde;
+    font-family:'Russo One';cursor:pointer;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:2px;font-size:10px;letter-spacing:0.5px;
+    transition:all .12s;text-align:center;padding:2px;}
+  .tool .ico{font-size:26px;line-height:1;}
+  .tool:hover{border-color:#0fc;color:#fff;background:linear-gradient(180deg,#1d2c3c,#0d1622);}
+  .tool.active{border-color:#0fff80;box-shadow:0 0 14px rgba(0,255,128,.35);color:#0fff80;}
+  .tool.active .ico{filter:drop-shadow(0 0 6px #0fff80);}
+  .sep{width:2px;height:58px;background:#2a3a44;margin:0 2px;flex:0 0 auto;}
+  #clearBtn{margin-left:auto;background:linear-gradient(135deg,#722,#411);color:#fff;
+    border:none;border-radius:8px;padding:8px 10px;font-family:'Orbitron';font-weight:800;
+    cursor:pointer;font-size:11px;letter-spacing:1px;width:74px;height:74px;flex:0 0 auto;}
+  #clearBtn:hover{background:linear-gradient(135deg,#a33,#722);}
+  /* подсказка */
+  #hint{position:absolute;top:10px;left:10px;color:#fff;font-family:'Russo One';font-size:13px;
+    background:rgba(0,0,0,.5);padding:6px 12px;border-radius:6px;text-shadow:0 0 4px #000;pointer-events:none;}
+  /* счётчики */
+  #stats{position:absolute;top:10px;right:10px;color:#fff;font-family:'Orbitron';font-size:13px;
+    background:rgba(0,0,0,.5);padding:6px 12px;border-radius:6px;letter-spacing:1px;pointer-events:none;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage"><canvas id="cv" width="880" height="490"></canvas></div>
+  <div id="hint">Выбери инструмент внизу и кликай в стол</div>
+  <div id="stats">👥 <span id="alive">0</span> &nbsp; 💀 <span id="dead">0</span></div>
+  <div id="toolbar">
+    <button class="tool active" data-tool="spawn"><div class="ico">🧍</div>Поставить</button>
+    <button class="tool" data-tool="drag"><div class="ico">✋</div>Таскать</button>
+    <button class="tool" data-tool="delete"><div class="ico">❌</div>Удалить</button>
+    <div class="sep"></div>
+    <button class="tool" data-tool="pistol"><div class="ico">🔫</div>Пистолет</button>
+    <button class="tool" data-tool="shotgun"><div class="ico">💥</div>Дробовик</button>
+    <button class="tool" data-tool="sword"><div class="ico">⚔️</div>Меч</button>
+    <button class="tool" data-tool="bomb"><div class="ico">💣</div>Бомба</button>
+    <button class="tool" data-tool="fire"><div class="ico">🔥</div>Огонь</button>
+    <div class="sep"></div>
+    <button class="tool" data-tool="heal"><div class="ico">💉</div>Шприц</button>
+    <button class="tool" data-tool="revive"><div class="ico">⚗️</div>Колба</button>
+    <div class="sep"></div>
+    <button class="tool" data-tool="box"><div class="ico">📦</div>Ящик</button>
+    <button class="tool" data-tool="barrel"><div class="ico">🛢️</div>Бочка</button>
+    <button id="clearBtn">🗑 ОЧИСТИТЬ</button>
+  </div>
+</div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+const hintEl=document.getElementById('hint');
+const aliveEl=document.getElementById('alive'),deadEl=document.getElementById('dead');
+
+// ============ АУДИО ============
+let audioCtx=null;
+function initAudio(){if(audioCtx)return;try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){audioCtx=null;}}
+function tone(f,dur,type='square',vol=0.12,when=0){
+  if(!audioCtx)return;
+  const t=audioCtx.currentTime+when;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,t);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+dur+0.02);
+}
+function sfxShoot(){initAudio();
+  if(!audioCtx)return;
+  const t=audioCtx.currentTime;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type='sawtooth';o.frequency.setValueAtTime(900,t);
+  o.frequency.exponentialRampToValueAtTime(80,t+0.08);
+  g.gain.setValueAtTime(0.16,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.1);
+  o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+0.12);
+}
+function sfxBoom(){initAudio();
+  if(!audioCtx)return;
+  const t=audioCtx.currentTime;
+  // громкий шумовой взрыв
+  const bufSize=audioCtx.sampleRate*0.4;
+  const buf=audioCtx.createBuffer(1,bufSize,audioCtx.sampleRate);
+  const data=buf.getChannelData(0);
+  for(let i=0;i<bufSize;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/bufSize,2);
+  const src=audioCtx.createBufferSource();src.buffer=buf;
+  const g=audioCtx.createGain();g.gain.value=0.4;
+  src.connect(g);g.connect(audioCtx.destination);src.start(t);
+  // низкий бас
+  const o=audioCtx.createOscillator(),og=audioCtx.createGain();
+  o.type='sine';o.frequency.setValueAtTime(60,t);
+  o.frequency.exponentialRampToValueAtTime(30,t+0.3);
+  og.gain.setValueAtTime(0.4,t);og.gain.exponentialRampToValueAtTime(0.0001,t+0.4);
+  o.connect(og);og.connect(audioCtx.destination);o.start(t);o.stop(t+0.45);
+}
+function sfxSlash(){initAudio();tone(1200,0.06,'sawtooth',0.14);tone(400,0.08,'sawtooth',0.12,0.04);}
+function sfxHeal(){initAudio();[523,659,784].forEach((n,i)=>tone(n,0.12,'triangle',0.14,i*0.06));}
+function sfxRevive(){initAudio();[392,523,659,784,1046].forEach((n,i)=>tone(n,0.14,'triangle',0.16,i*0.08));}
+function sfxSpawn(){initAudio();tone(440,0.08,'triangle',0.12);}
+function sfxFire(){initAudio();tone(220,0.15,'sawtooth',0.10);}
+
+// ============ ФОНОВАЯ МУЗЫКА ============
+let musicGain=null,musicOn=false,musicTimer=null,musicIdx=0;
+// весёлая прыгучая мелодия в C-мажоре, чуть хаотичная — под песочницу
+const BG=[
+  {bass:130.81, mel:[523,659,784,659,523,659,784,1046]}, // C
+  {bass:174.61, mel:[698,880,1046,880,698,880,1046,880]}, // F
+  {bass:196.00, mel:[784,659,523,659,784,988,784,659]}, // G
+  {bass:130.81, mel:[523,587,659,784,659,587,523,392]}  // C
+];
+function mn(f,when,dur,vol,type='square'){
+  if(!audioCtx||!musicGain)return;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,when);
+  g.gain.setValueAtTime(0.0001,when);
+  g.gain.exponentialRampToValueAtTime(vol,when+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,when+dur);
+  o.connect(g);g.connect(musicGain);o.start(when);o.stop(when+dur+0.02);
+}
+function kick(when){
+  if(!audioCtx||!musicGain)return;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type='sine';o.frequency.setValueAtTime(120,when);
+  o.frequency.exponentialRampToValueAtTime(40,when+0.12);
+  g.gain.setValueAtTime(0.32,when);g.gain.exponentialRampToValueAtTime(0.0001,when+0.15);
+  o.connect(g);g.connect(musicGain);o.start(when);o.stop(when+0.18);
+}
+function hatTick(when){
+  if(!audioCtx||!musicGain)return;
+  const bufSize=audioCtx.sampleRate*0.04;
+  const buf=audioCtx.createBuffer(1,bufSize,audioCtx.sampleRate);
+  const data=buf.getChannelData(0);
+  for(let i=0;i<bufSize;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/bufSize,4);
+  const src=audioCtx.createBufferSource();src.buffer=buf;
+  const g=audioCtx.createGain();g.gain.value=0.10;
+  src.connect(g);g.connect(musicGain);src.start(when);
+}
+function scheduleBar(when){
+  if(!musicOn||!audioCtx)return;
+  const bar=BG[musicIdx%BG.length];const beat=0.22;
+  // бас квакающий
+  mn(bar.bass,when,1.7,0.14,'triangle');
+  mn(bar.bass*2,when+beat*4,1.0,0.08,'triangle');
+  // кики
+  kick(when);kick(when+beat*2);kick(when+beat*4);kick(when+beat*6);
+  // хэты на офф-битах
+  for(let i=0;i<8;i++) hatTick(when+beat*i+beat*0.5);
+  // мелодия
+  for(let i=0;i<8;i++){const f=bar.mel[i];if(f>0) mn(f,when+beat*i,beat*0.85,0.07,'square');}
+  musicIdx++;
+}
+function musicLoop(){
+  if(!musicOn||!audioCtx)return;
+  const now=audioCtx.currentTime;
+  scheduleBar(now+0.05);scheduleBar(now+1.85);
+  musicTimer=setTimeout(musicLoop,3600);
+}
+function startMusic(){
+  initAudio();if(!audioCtx)return;if(audioCtx.state==='suspended')audioCtx.resume();
+  if(musicOn)return;
+  if(!musicGain){musicGain=audioCtx.createGain();musicGain.gain.value=0.35;musicGain.connect(audioCtx.destination);}
+  musicOn=true;musicIdx=0;musicLoop();
+}
+
+// ============ СОСТОЯНИЕ ============
+let tool='spawn';
+let bodies=[]; // {x,y,vx,vy,r,type,hp,maxHp,dead,burning,bleeding,emoji,grabbed}
+let projectiles=[]; // {x,y,vx,vy,life,type,dmg}
+let particles=[]; // визуальные эффекты
+let bombs=[]; // {x,y,vx,vy,timer}
+let walls=[]; // {x,y,w,h} статические (ящики, бочки)
+let mouseX=0,mouseY=0,mouseDown=false,dragBody=null;
+let aliveCount=0, deadCount=0;
+let lastShot=0;
+
+const HINTS={
+  spawn:'Кликай — поставить человечка',
+  drag:'Удерживай и таскай человечков',
+  delete:'Кликай по объекту — удалить его',
+  pistol:'Удерживай ЛКМ — автоматический огонь',
+  shotgun:'Кликай — дробь по 5 пуль',
+  sword:'Кликай по человечку — рубануть',
+  bomb:'Кликай — кинуть бомбу (взорвётся через 2 сек)',
+  fire:'Кликай — поджечь',
+  heal:'Кликай раненого — вылечить (+50 HP)',
+  revive:'Кликай мёртвого — воскресить ⚗️',
+  box:'Кликай — поставить деревянный ящик',
+  barrel:'Кликай — поставить взрывоопасную бочку'
+};
+
+document.querySelectorAll('.tool').forEach(b=>{
+  b.onclick=()=>{
+    tool=b.dataset.tool;
+    document.querySelectorAll('.tool').forEach(x=>x.classList.toggle('active',x===b));
+    hintEl.textContent=HINTS[tool]||'';
+  };
+});
+document.getElementById('clearBtn').onclick=()=>{
+  bodies=[];projectiles=[];particles=[];bombs=[];walls=[];aliveCount=0;deadCount=0;updStats();
+};
+
+cv.addEventListener('mousemove',e=>{
+  const r=cv.getBoundingClientRect();
+  mouseX=(e.clientX-r.left)*(W/r.width);
+  mouseY=(e.clientY-r.top)*(H/r.height);
+  if(dragBody){
+    dragBody.x=mouseX;dragBody.y=mouseY;
+    dragBody.vx=(mouseX-dragBody._px)*0.5;
+    dragBody.vy=(mouseY-dragBody._py)*0.5;
+    dragBody._px=mouseX;dragBody._py=mouseY;
+  }
+});
+cv.addEventListener('mousedown',e=>{
+  mouseDown=true;
+  handleClick(mouseX,mouseY);
+});
+cv.addEventListener('mouseup',e=>{
+  mouseDown=false;
+  if(dragBody){dragBody.grabbed=false;dragBody=null;}
+});
+// тач: ставим/стреляем/таскаем пальцем
+function touchUpdatePos(t){
+  const r=cv.getBoundingClientRect();
+  mouseX=(t.clientX-r.left)*(W/r.width);
+  mouseY=(t.clientY-r.top)*(H/r.height);
+}
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0];if(!t)return;
+  touchUpdatePos(t);
+  mouseDown=true;
+  handleClick(mouseX,mouseY);
+},{passive:false});
+cv.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const t=e.touches[0];if(!t)return;
+  touchUpdatePos(t);
+  if(dragBody){
+    dragBody.x=mouseX;dragBody.y=mouseY;
+    dragBody.vx=(mouseX-dragBody._px)*0.5;
+    dragBody.vy=(mouseY-dragBody._py)*0.5;
+    dragBody._px=mouseX;dragBody._py=mouseY;
+  }
+},{passive:false});
+cv.addEventListener('touchend',e=>{
+  e.preventDefault();
+  mouseDown=false;
+  if(dragBody){dragBody.grabbed=false;dragBody=null;}
+},{passive:false});
+
+
+function handleClick(x,y){
+  initAudio();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();
+  startMusic();
+  if(tool==='spawn'){
+    spawnPerson(x,y);
+  } else if(tool==='drag'){
+    const b=findBodyAt(x,y);
+    if(b){b.grabbed=true;b._px=x;b._py=y;dragBody=b;}
+  } else if(tool==='delete'){
+    // удаляем человечка или объект под курсором
+    const b=findBodyAt(x,y);
+    if(b){
+      const i=bodies.indexOf(b);
+      if(b.dead) deadCount--; else aliveCount--;
+      bodies.splice(i,1);
+      updStats();
+      // эффект "пыли"
+      for(let k=0;k<10;k++){
+        particles.push({type:'spark',x:b.x,y:b.y,
+          vx:(Math.random()-0.5)*3,vy:-Math.random()*3,life:25,color:'#bbb'});
+      }
+    } else {
+      // ищем стену
+      for(let i=walls.length-1;i>=0;i--){
+        const w=walls[i];
+        if(x>=w.x&&x<=w.x+w.w&&y>=w.y&&y<=w.y+w.h){
+          for(let k=0;k<10;k++){
+            particles.push({type:'spark',x:w.x+w.w/2,y:w.y+w.h/2,
+              vx:(Math.random()-0.5)*3,vy:-Math.random()*3,life:25,color:'#bbb'});
+          }
+          walls.splice(i,1);
+          break;
+        }
+      }
+    }
+  } else if(tool==='pistol'){
+    // полуавтомат при клике, авто при удержании — это в update
+    fire('pistol',x,y);
+  } else if(tool==='shotgun'){
+    for(let i=0;i<5;i++) fire('shotgun',x+Math.random()*40-20,y+Math.random()*40-20);
+  } else if(tool==='sword'){
+    slashAt(x,y);
+  } else if(tool==='bomb'){
+    throwBomb(x,y);
+  } else if(tool==='fire'){
+    fireAt(x,y);
+  } else if(tool==='heal'){
+    healAt(x,y);
+  } else if(tool==='revive'){
+    reviveAt(x,y);
+  } else if(tool==='box'){
+    addBox(x,y);
+  } else if(tool==='barrel'){
+    addBarrel(x,y);
+  }
+}
+
+// ============ ТЕЛА ============
+function spawnPerson(x,y){
+  bodies.push({
+    x,y, vx:0,vy:0, r:18, type:'person',
+    hp:100, maxHp:100, dead:false,
+    burning:0, bleeding:0,
+    emoji:'🧍', deadEmoji:'💀',
+    grabbed:false, ang:0
+  });
+  sfxSpawn();
+  aliveCount++;updStats();
+}
+function findBodyAt(x,y){
+  for(let i=bodies.length-1;i>=0;i--){
+    const b=bodies[i];
+    if(Math.hypot(b.x-x,b.y-y)<b.r+5) return b;
+  }
+  return null;
+}
+function addBox(x,y){
+  walls.push({x:x-24,y:y-24,w:48,h:48,type:'box',hp:60});
+}
+function addBarrel(x,y){
+  walls.push({x:x-22,y:y-30,w:44,h:60,type:'barrel',hp:40});
+}
+
+// ============ ОРУЖИЕ ============
+function fire(weapon,tx,ty){
+  // выстрел из точки внизу экрана к (tx,ty) — упрощённо: пуля летит к курсору с малым разбросом
+  const startX=W/2, startY=H-20;
+  const a=Math.atan2(ty-startY,tx-startX);
+  const spread = weapon==='shotgun'?0.12:0.04;
+  const ang = a + (Math.random()-0.5)*spread;
+  const sp = weapon==='shotgun'?16:18;
+  projectiles.push({
+    x:startX, y:startY, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp,
+    life:60, dmg: weapon==='shotgun'?18:25, type:'bullet'
+  });
+  sfxShoot();
+}
+
+function slashAt(x,y){
+  // удар в радиусе 35 от точки
+  let hit=false;
+  bodies.forEach(b=>{
+    if(!b.dead && Math.hypot(b.x-x,b.y-y)<40){
+      b.hp-=35;
+      b.bleeding=120;
+      b.vx+=(b.x-x)*0.3;
+      b.vy-=4;
+      hit=true;
+      addBlood(b.x,b.y);
+      if(b.hp<=0) kill(b);
+    }
+  });
+  // удар по ящикам/бочкам тоже
+  walls.forEach(w=>{
+    const cx=w.x+w.w/2,cy=w.y+w.h/2;
+    if(Math.hypot(cx-x,cy-y)<40){w.hp-=20;hit=true;}
+  });
+  walls=walls.filter(w=>{
+    if(w.hp<=0){
+      if(w.type==='barrel') explode(w.x+w.w/2,w.y+w.h/2);
+      return false;
+    }
+    return true;
+  });
+  if(hit)sfxSlash();
+  // визуальный взмах
+  particles.push({type:'slash',x,y,life:8});
+}
+
+function throwBomb(x,y){
+  // бомба летит из точки внизу-середины в (x,y) по параболе
+  const startX=W/2, startY=H-30;
+  const dx=x-startX, dy=y-startY;
+  const t=30; // кадров полёта
+  const g=0.4;
+  const vx=dx/t;
+  const vy=dy/t - 0.5*g*t;
+  bombs.push({x:startX,y:startY,vx,vy,timer:90,r:14});
+}
+
+function fireAt(x,y){
+  // поджечь область
+  bodies.forEach(b=>{
+    if(!b.dead && Math.hypot(b.x-x,b.y-y)<35){
+      b.burning=240;
+    }
+  });
+  // огонь как партиклы на земле
+  for(let i=0;i<20;i++){
+    particles.push({type:'flame',x:x+(Math.random()-0.5)*30,y:y+(Math.random()-0.5)*20,
+      vx:(Math.random()-0.5)*2,vy:-Math.random()*2-1,life:60+Math.random()*30});
+  }
+  sfxFire();
+}
+
+function healAt(x,y){
+  const b=findBodyAt(x,y);
+  if(b && !b.dead){
+    b.hp=Math.min(b.maxHp,b.hp+50);
+    b.burning=0;b.bleeding=0;
+    sfxHeal();
+    for(let i=0;i<12;i++){
+      particles.push({type:'spark',x:b.x,y:b.y,vx:(Math.random()-0.5)*3,vy:-Math.random()*3,life:30,color:'#0f8'});
+    }
+  }
+}
+function reviveAt(x,y){
+  const b=findBodyAt(x,y);
+  if(b && b.dead){
+    b.dead=false;
+    b.hp=b.maxHp;
+    b.burning=0;b.bleeding=0;
+    aliveCount++;deadCount--;updStats();
+    sfxRevive();
+    for(let i=0;i<25;i++){
+      particles.push({type:'spark',x:b.x,y:b.y,
+        vx:(Math.random()-0.5)*4,vy:-Math.random()*4,
+        life:50,color:'#8af'});
+    }
+  }
+}
+
+function kill(b){
+  if(b.dead)return;
+  b.dead=true;b.hp=0;b.burning=0;b.bleeding=0;
+  aliveCount--;deadCount++;updStats();
+  for(let i=0;i<15;i++){
+    particles.push({type:'blood',x:b.x,y:b.y,
+      vx:(Math.random()-0.5)*6,vy:-Math.random()*4-1,
+      life:40,color:'#c22'});
+  }
+}
+
+function explode(x,y){
+  sfxBoom();
+  // частицы
+  for(let i=0;i<40;i++){
+    const a=Math.random()*Math.PI*2,sp=Math.random()*8+2;
+    particles.push({type:'explosion',x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:30,color:'#fc4'});
+  }
+  particles.push({type:'shock',x,y,r:0,life:20});
+  // урон в радиусе
+  bodies.forEach(b=>{
+    const d=Math.hypot(b.x-x,b.y-y);
+    if(d<120 && !b.dead){
+      const dmg=120 - d;
+      b.hp-=dmg;
+      const a=Math.atan2(b.y-y,b.x-x);
+      b.vx+=Math.cos(a)*12;
+      b.vy+=Math.sin(a)*12 - 4;
+      b.burning=200;
+      if(b.hp<=0) kill(b);
+    } else if(b.dead && d<120){
+      // труп разлетается
+      const a=Math.atan2(b.y-y,b.x-x);
+      b.vx+=Math.cos(a)*10;
+      b.vy+=Math.sin(a)*10 - 3;
+    }
+  });
+  // цепная реакция бочек
+  walls.forEach(w=>{
+    const cx=w.x+w.w/2,cy=w.y+w.h/2;
+    const d=Math.hypot(cx-x,cy-y);
+    if(d<120){
+      w.hp-=80;
+    }
+  });
+  walls=walls.filter(w=>{
+    if(w.hp<=0){
+      if(w.type==='barrel'){
+        // отложенная цепная — иначе бесконечная рекурсия
+        setTimeout(()=>explode(w.x+w.w/2,w.y+w.h/2),100);
+      }
+      return false;
+    }
+    return true;
+  });
+}
+
+function addBlood(x,y){
+  for(let i=0;i<5;i++){
+    particles.push({type:'blood',x,y,
+      vx:(Math.random()-0.5)*4,vy:-Math.random()*3,
+      life:35,color:'#c22'});
+  }
+}
+
+function updStats(){aliveEl.textContent=aliveCount;deadEl.textContent=deadCount;}
+
+// ============ ФИЗИКА ============
+const GRAVITY=0.55;
+const FLOOR=H-20;
+const WALL_BOUNCE=0.4;
+
+function physBody(b){
+  if(b.grabbed){return;}
+  b.vy+=GRAVITY;
+  b.vx*=0.99;
+  b.x+=b.vx; b.y+=b.vy;
+  // пол
+  if(b.y+b.r>FLOOR){
+    b.y=FLOOR-b.r;
+    if(Math.abs(b.vy)>1){b.vy*=-WALL_BOUNCE;}
+    else b.vy=0;
+    b.vx*=0.85;
+  }
+  // стены экрана
+  if(b.x-b.r<0){b.x=b.r;b.vx*=-WALL_BOUNCE;}
+  if(b.x+b.r>W){b.x=W-b.r;b.vx*=-WALL_BOUNCE;}
+  // столкновение с ящиками/бочками (простая прямоугольная коллизия)
+  walls.forEach(w=>{
+    if(b.x+b.r>w.x && b.x-b.r<w.x+w.w && b.y+b.r>w.y && b.y-b.r<w.y+w.h){
+      // решаем по оси с меньшим проникновением
+      const dxl=b.x+b.r-w.x, dxr=w.x+w.w-(b.x-b.r);
+      const dyt=b.y+b.r-w.y, dyb=w.y+w.h-(b.y-b.r);
+      const m=Math.min(dxl,dxr,dyt,dyb);
+      if(m===dyt){b.y=w.y-b.r;if(b.vy>0){b.vy*=-WALL_BOUNCE;b.vx*=0.85;}}
+      else if(m===dyb){b.y=w.y+w.h+b.r;b.vy*=-WALL_BOUNCE;}
+      else if(m===dxl){b.x=w.x-b.r;b.vx*=-WALL_BOUNCE;}
+      else {b.x=w.x+w.w+b.r;b.vx*=-WALL_BOUNCE;}
+    }
+  });
+  // тела между собой
+  bodies.forEach(o=>{
+    if(o===b)return;
+    const d=Math.hypot(o.x-b.x,o.y-b.y);
+    const minD=b.r+o.r;
+    if(d<minD && d>0){
+      const overlap=(minD-d)/2;
+      const nx=(o.x-b.x)/d, ny=(o.y-b.y)/d;
+      b.x-=nx*overlap;b.y-=ny*overlap;
+      o.x+=nx*overlap;o.y+=ny*overlap;
+      // обмен импульсами
+      const dvx=b.vx-o.vx, dvy=b.vy-o.vy;
+      const dot=dvx*nx+dvy*ny;
+      if(dot>0){
+        b.vx-=dot*nx*0.7;b.vy-=dot*ny*0.7;
+        o.vx+=dot*nx*0.7;o.vy+=dot*ny*0.7;
+      }
+    }
+  });
+  // вращение от движения
+  b.ang += b.vx*0.02;
+  // эффекты: горение, кровотечение
+  if(!b.dead){
+    if(b.burning>0){
+      b.burning--;
+      if(b.burning%8===0){
+        b.hp-=1;
+        particles.push({type:'flame',x:b.x+(Math.random()-0.5)*20,y:b.y-10,
+          vx:(Math.random()-0.5)*1,vy:-1-Math.random()*2,life:30});
+      }
+      if(b.hp<=0)kill(b);
+    }
+    if(b.bleeding>0){
+      b.bleeding--;
+      if(b.bleeding%20===0){
+        b.hp-=1;
+        addBlood(b.x,b.y);
+        if(b.hp<=0)kill(b);
+      }
+    }
+  } else {
+    // мёртвое тело со временем гасит огонь
+    if(b.burning>0) b.burning--;
+  }
+}
+
+function update(){
+  // авто-стрельба из пистолета
+  if(mouseDown && tool==='pistol'){
+    const now=performance.now();
+    if(now-lastShot>110){fire('pistol',mouseX,mouseY);lastShot=now;}
+  }
+  // тела
+  bodies.forEach(physBody);
+  // пули
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p=projectiles[i];
+    p.x+=p.vx;p.y+=p.vy;p.life--;
+    if(p.life<=0||p.x<0||p.x>W||p.y<0||p.y>H){projectiles.splice(i,1);continue;}
+    // попадание в тело
+    let hit=false;
+    for(const b of bodies){
+      if(Math.hypot(b.x-p.x,b.y-p.y)<b.r){
+        if(!b.dead){
+          b.hp-=p.dmg;
+          b.bleeding=180;
+          const a=Math.atan2(p.vy,p.vx);
+          b.vx+=Math.cos(a)*4;b.vy+=Math.sin(a)*4-1;
+          addBlood(b.x,b.y);
+          if(b.hp<=0) kill(b);
+        } else {
+          // в труп — отбрасывает
+          const a=Math.atan2(p.vy,p.vx);
+          b.vx+=Math.cos(a)*3;b.vy+=Math.sin(a)*3-0.5;
+        }
+        hit=true;break;
+      }
+    }
+    if(hit){projectiles.splice(i,1);continue;}
+    // в стены
+    for(let j=walls.length-1;j>=0;j--){
+      const w=walls[j];
+      if(p.x>w.x&&p.x<w.x+w.w&&p.y>w.y&&p.y<w.y+w.h){
+        w.hp-=p.dmg;
+        if(w.hp<=0){
+          if(w.type==='barrel') explode(w.x+w.w/2,w.y+w.h/2);
+          walls.splice(j,1);
+        }
+        projectiles.splice(i,1);hit=true;break;
+      }
+    }
+  }
+  // бомбы
+  for(let i=bombs.length-1;i>=0;i--){
+    const b=bombs[i];
+    b.vy+=GRAVITY;
+    b.x+=b.vx;b.y+=b.vy;
+    if(b.y+b.r>FLOOR){b.y=FLOOR-b.r;b.vy*=-0.4;b.vx*=0.7;}
+    b.timer--;
+    if(b.timer<=0){explode(b.x,b.y);bombs.splice(i,1);continue;}
+    // тиканье
+    if(b.timer%20===0 && audioCtx){tone(2000,0.03,'square',0.08);}
+  }
+  // частицы
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    if(p.type==='flame'){
+      p.x+=p.vx;p.y+=p.vy;p.vy-=0.05;
+    } else if(p.type==='shock'){
+      p.r+=4;
+    } else if(p.type==='slash'){
+      // статичная иконка
+    } else {
+      p.x+=p.vx;p.y+=p.vy;p.vy+=GRAVITY*0.6;
+      if(p.y>FLOOR){p.y=FLOOR;p.vy=0;p.vx=0;}
+    }
+    p.life--;
+    if(p.life<=0) particles.splice(i,1);
+  }
+}
+
+// ============ РЕНДЕР ============
+function render(){
+  // небо
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#5dc2eb');g.addColorStop(0.6,'#a6dff5');g.addColorStop(0.95,'#c6e6c8');g.addColorStop(1,'#9dc890');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // солнце
+  ctx.beginPath();ctx.arc(W*0.85,60,32,0,7);
+  ctx.fillStyle='#fff7b0';ctx.shadowColor='#ffd060';ctx.shadowBlur=30;ctx.fill();ctx.shadowBlur=0;
+  // земля
+  ctx.fillStyle='#7a9555';
+  ctx.fillRect(0,FLOOR,W,H-FLOOR);
+  ctx.fillStyle='#5a7a3a';
+  ctx.fillRect(0,FLOOR,W,4);
+  // травинки
+  ctx.strokeStyle='#5a7a3a';ctx.lineWidth=1;
+  for(let i=0;i<60;i++){const x=(i*15+7)%W; ctx.beginPath();ctx.moveTo(x,FLOOR);ctx.lineTo(x+1,FLOOR-3);ctx.stroke();}
+
+  // стены (ящики/бочки)
+  walls.forEach(w=>{
+    if(w.type==='box'){
+      ctx.fillStyle='#8b4513';ctx.fillRect(w.x,w.y,w.w,w.h);
+      ctx.strokeStyle='#5a2a0a';ctx.lineWidth=2;ctx.strokeRect(w.x,w.y,w.w,w.h);
+      ctx.beginPath();ctx.moveTo(w.x,w.y);ctx.lineTo(w.x+w.w,w.y+w.h);
+      ctx.moveTo(w.x+w.w,w.y);ctx.lineTo(w.x,w.y+w.h);ctx.stroke();
+    } else if(w.type==='barrel'){
+      ctx.fillStyle='#aa3322';ctx.fillRect(w.x,w.y,w.w,w.h);
+      ctx.fillStyle='#222';ctx.fillRect(w.x,w.y+8,w.w,6);ctx.fillRect(w.x,w.y+w.h-14,w.w,6);
+      ctx.fillStyle='#fc6';ctx.font='10px Russo One';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('EX',w.x+w.w/2,w.y+w.h/2);
+    }
+    // полоска hp над объектом
+    if(w.hp<(w.type==='box'?60:40)){
+      const mx=w.type==='box'?60:40;
+      ctx.fillStyle='#000';ctx.fillRect(w.x,w.y-6,w.w,3);
+      ctx.fillStyle='#0f8';ctx.fillRect(w.x,w.y-6,w.w*(w.hp/mx),3);
+    }
+  });
+
+  // тела
+  bodies.forEach(b=>{
+    ctx.save();
+    ctx.translate(b.x,b.y);
+    if(b.dead) ctx.rotate(Math.PI/2);
+    else ctx.rotate(Math.max(-0.5,Math.min(0.5,b.vx*0.05)));
+    ctx.font=(b.r*2.4)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    const emoji = b.dead?'💀':(b.burning>0?'🔥':b.emoji);
+    ctx.fillText(emoji,0,0);
+    ctx.restore();
+    // полоска hp (только живые)
+    if(!b.dead && b.hp<b.maxHp){
+      const bw=44;
+      ctx.fillStyle='#000';ctx.fillRect(b.x-bw/2,b.y-b.r-12,bw,4);
+      ctx.fillStyle=b.hp>50?'#0f8':(b.hp>25?'#fc6':'#f44');
+      ctx.fillRect(b.x-bw/2,b.y-b.r-12,bw*(b.hp/b.maxHp),4);
+    }
+  });
+
+  // пули
+  projectiles.forEach(p=>{
+    ctx.fillStyle='#ff0';
+    ctx.beginPath();ctx.arc(p.x,p.y,3,0,7);ctx.fill();
+    ctx.strokeStyle='rgba(255,200,0,.6)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(p.x-p.vx,p.y-p.vy);ctx.lineTo(p.x,p.y);ctx.stroke();
+  });
+
+  // бомбы
+  bombs.forEach(b=>{
+    ctx.font=(b.r*2)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    const blink=Math.floor(b.timer/5)%2;
+    if(b.timer<30 && blink){ctx.shadowColor='#f00';ctx.shadowBlur=14;}
+    ctx.fillText('💣',b.x,b.y);
+    ctx.shadowBlur=0;
+  });
+
+  // частицы
+  particles.forEach(p=>{
+    if(p.type==='flame'){
+      ctx.fillStyle=`rgba(255,${180+Math.random()*60|0},0,${p.life/60})`;
+      ctx.beginPath();ctx.arc(p.x,p.y,4+Math.random()*4,0,7);ctx.fill();
+    } else if(p.type==='blood'){
+      ctx.fillStyle=`rgba(180,30,30,${Math.min(1,p.life/35)})`;
+      ctx.fillRect(p.x-2,p.y-2,4,4);
+    } else if(p.type==='spark'){
+      ctx.fillStyle=p.color;
+      ctx.globalAlpha=p.life/40;
+      ctx.fillRect(p.x-2,p.y-2,3,3);
+      ctx.globalAlpha=1;
+    } else if(p.type==='explosion'){
+      ctx.fillStyle=`rgba(255,${100+Math.random()*155|0},20,${p.life/30})`;
+      ctx.beginPath();ctx.arc(p.x,p.y,4,0,7);ctx.fill();
+    } else if(p.type==='shock'){
+      ctx.strokeStyle=`rgba(255,200,80,${p.life/20})`;
+      ctx.lineWidth=4;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.stroke();
+    } else if(p.type==='slash'){
+      ctx.strokeStyle=`rgba(255,255,255,${p.life/8})`;
+      ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(p.x,p.y,40,Math.PI*0.2,Math.PI*1.2);ctx.stroke();
+    }
+  });
+
+  // если выбрано оружие — рисуем "прицел"
+  if(['pistol','shotgun','bomb','fire'].includes(tool)){
+    ctx.strokeStyle='rgba(255,80,80,.8)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(mouseX,mouseY,12,0,7);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(mouseX-18,mouseY);ctx.lineTo(mouseX-7,mouseY);
+    ctx.moveTo(mouseX+7,mouseY);ctx.lineTo(mouseX+18,mouseY);
+    ctx.moveTo(mouseX,mouseY-18);ctx.lineTo(mouseX,mouseY-7);
+    ctx.moveTo(mouseX,mouseY+7);ctx.lineTo(mouseX,mouseY+18);ctx.stroke();
+  }
+}
+
+function loop(){update();render();requestAnimationFrame(loop);}
+loop();
+</script>
+</body>
+</html>
