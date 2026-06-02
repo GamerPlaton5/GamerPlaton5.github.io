@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ДУРАК</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@600;800;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;user-select:none;}
+  body{font-family:'Russo One',sans-serif;background:#0a3320;min-height:100vh;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  #wrap{position:relative;width:880px;max-width:98vw;height:580px;max-height:92vh;
+    border-radius:14px;overflow:hidden;
+    background:radial-gradient(ellipse at center,#1a6a40 0%,#0a3020 80%);
+    box-shadow:0 0 60px rgba(40,200,120,.3);}
+  /* верхняя зона — бот */
+  #bot{position:absolute;top:14px;left:0;right:0;height:140px;display:flex;align-items:center;justify-content:center;}
+  #botInfo{position:absolute;top:14px;left:14px;color:#cfb;font-family:'Orbitron';font-weight:800;
+    background:rgba(0,0,0,.4);padding:6px 12px;border-radius:8px;font-size:14px;letter-spacing:1px;}
+  #botInfo .avatar{font-size:24px;margin-right:6px;vertical-align:middle;}
+  #botInfo .cards{color:#fc6;}
+  #botThink{position:absolute;top:60px;left:14px;color:#fc6;font-style:italic;font-size:14px;font-family:'Russo One';
+    background:rgba(0,0,0,.4);padding:4px 10px;border-radius:6px;opacity:0;transition:.3s;}
+  #botThink.show{opacity:1;}
+  .botHand{display:flex;gap:-30px;}
+  /* колода и козырь */
+  #deckArea{position:absolute;top:200px;left:30px;width:140px;height:170px;}
+  #deck{position:absolute;left:60px;top:30px;width:60px;height:90px;cursor:default;}
+  #trump{position:absolute;left:0;top:0;}
+  #deckCount{position:absolute;top:130px;left:30px;color:#fff;font-family:'Orbitron';
+    font-weight:800;font-size:14px;letter-spacing:1px;text-shadow:0 0 6px #000;text-align:center;width:140px;}
+  /* игровой стол */
+  #table{position:absolute;top:200px;left:200px;right:200px;height:200px;
+    background:rgba(0,0,0,.18);border:2px dashed rgba(255,255,255,.18);border-radius:14px;
+    display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;padding:14px;}
+  .pair{position:relative;width:70px;height:100px;}
+  .pair .attackCard, .pair .defendCard{position:absolute;width:70px;height:100px;}
+  .pair .defendCard{left:18px;top:18px;}
+  /* нижняя зона — игрок */
+  #hand{position:absolute;bottom:64px;left:0;right:0;display:flex;justify-content:center;
+    align-items:flex-end;gap:0;padding:0 20px;min-height:130px;}
+  /* кнопки действий */
+  #actions{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;}
+  .actBtn{background:linear-gradient(135deg,#fc6,#c80);color:#211;border:none;border-radius:8px;
+    padding:10px 22px;font-family:'Orbitron';font-weight:800;font-size:14px;letter-spacing:2px;
+    cursor:pointer;box-shadow:0 0 16px rgba(255,200,80,.4);text-transform:uppercase;}
+  .actBtn:active{transform:scale(.96);}
+  .actBtn.danger{background:linear-gradient(135deg,#e44,#822);color:#fff;}
+  .actBtn.go{background:linear-gradient(135deg,#0e8,#063);color:#011;}
+  .actBtn:disabled{background:#333;color:#666;cursor:not-allowed;box-shadow:none;}
+  /* статус */
+  #status{position:absolute;bottom:14px;left:14px;color:#fc6;font-family:'Orbitron';font-weight:800;
+    background:rgba(0,0,0,.4);padding:6px 12px;border-radius:8px;font-size:13px;letter-spacing:1px;
+    max-width:200px;}
+  /* карты */
+  .card{width:60px;height:90px;border-radius:6px;background:#fff;color:#000;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    box-shadow:0 4px 10px rgba(0,0,0,.5);font-family:'Russo One';position:relative;
+    border:1px solid #aaa;transition:transform .15s, box-shadow .15s;}
+  .card.back{background:linear-gradient(135deg,#c43,#822);border:1px solid #500;}
+  .card.back::after{content:'';position:absolute;inset:6px;border:2px dashed rgba(255,255,255,.4);border-radius:4px;}
+  .card.red{color:#d22;}
+  .card.black{color:#111;}
+  .card .rank{font-size:18px;font-weight:800;line-height:1;}
+  .card .suit{font-size:24px;line-height:1;margin-top:2px;}
+  .card.big{width:80px;height:115px;}
+  .card.big .rank{font-size:24px;}
+  .card.big .suit{font-size:32px;}
+  .card.hand{cursor:pointer;margin-left:-22px;}
+  .card.hand:first-child{margin-left:0;}
+  .card.hand:hover{transform:translateY(-14px);box-shadow:0 8px 14px rgba(0,0,0,.6);z-index:5;}
+  .card.hand.selectable{box-shadow:0 0 12px rgba(255,220,80,.6),0 4px 10px rgba(0,0,0,.5);}
+  .card.hand.dim{opacity:.55;cursor:not-allowed;}
+  .card.hand.dim:hover{transform:none;box-shadow:0 4px 10px rgba(0,0,0,.5);}
+  /* экраны */
+  #screen{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;color:#cde;padding:30px;
+    background:radial-gradient(ellipse at center,#0a3a20 0%,#020a06 80%);}
+  #screen.hidden{display:none;}
+  h1{font-size:54px;color:#fc6;text-shadow:0 0 30px #c80;margin-bottom:8px;letter-spacing:5px;font-family:'Orbitron';}
+  h2{font-size:18px;color:#9ec;letter-spacing:3px;margin-bottom:18px;font-family:'Orbitron';}
+  p{font-size:15px;line-height:1.8;margin-bottom:14px;color:#cea;max-width:580px;}
+  .key{background:#1a3520;border:1px solid #4a8;border-radius:4px;padding:2px 8px;color:#cf9;font-family:'Russo One';}
+  .btn{background:linear-gradient(135deg,#fc6,#c80);color:#211;border:none;
+    border-radius:6px;padding:14px 46px;font-family:'Orbitron';font-size:20px;font-weight:900;
+    letter-spacing:3px;cursor:pointer;box-shadow:0 0 28px rgba(255,200,80,.5);text-transform:uppercase;}
+  .btn:active{transform:scale(.96);}
+  .btn.win{background:linear-gradient(135deg,#0e8,#063);color:#011;}
+  .btn.lose{background:linear-gradient(135deg,#e44,#822);color:#fff;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="botInfo"><span class="avatar">🤖</span>Бот <span class="cards" id="botCards">— карт</span></div>
+  <div id="botThink" class="">Думаю…</div>
+  <div id="bot"><div class="botHand" id="botHand"></div></div>
+  <div id="deckArea">
+    <div id="trump"></div>
+    <div id="deck"></div>
+    <div id="deckCount">Колода: 24</div>
+  </div>
+  <div id="table"></div>
+  <div id="hand"></div>
+  <div id="status">Твой ход</div>
+  <div id="actions">
+    <button class="actBtn go" id="passBtn" style="display:none">БИТО</button>
+    <button class="actBtn danger" id="takeBtn" style="display:none">ВЗЯТЬ</button>
+    <button class="actBtn" id="doneBtn" style="display:none">ХВАТИТ</button>
+  </div>
+  <div id="screen"></div>
+</div>
+<script>
+'use strict';
+// ============ КАРТЫ ============
+const SUITS=['♠','♥','♦','♣']; // пики, червы, бубны, трефы
+const SUIT_COLOR={'♠':'black','♥':'red','♦':'red','♣':'black'};
+const RANKS=['6','7','8','9','10','В','Д','К','Т'];
+const RANK_VAL={'6':6,'7':7,'8':8,'9':9,'10':10,'В':11,'Д':12,'К':13,'Т':14};
+
+function makeCard(rank,suit){return {rank,suit,id:rank+suit};}
+function cardLabel(c){return c.rank+c.suit;}
+function isHigher(a,b,trump){
+  // a > b если оба одной масти и a больше, или a козырь, а b нет
+  if(a.suit===b.suit) return RANK_VAL[a.rank]>RANK_VAL[b.rank];
+  if(a.suit===trump && b.suit!==trump) return true;
+  return false;
+}
+function canBeat(attack, defend, trump){
+  // can defend beat attack?
+  return isHigher(defend, attack, trump);
+}
+
+// ============ СОСТОЯНИЕ ============
+let deck=[], trump=null, trumpCard=null;
+let pHand=[], bHand=[];
+let table=[]; // [{a:card, d:card|null}, ...]
+let turn=null; // 'p' (player attacks) | 'b' (bot attacks)
+let phase='menu'; // menu | playing | over
+let selectedIdx=null;
+
+// ============ DOM ============
+const botHandEl=document.getElementById('botHand');
+const handEl=document.getElementById('hand');
+const tableEl=document.getElementById('table');
+const deckEl=document.getElementById('deck');
+const trumpEl=document.getElementById('trump');
+const deckCountEl=document.getElementById('deckCount');
+const botCardsEl=document.getElementById('botCards');
+const statusEl=document.getElementById('status');
+const screen=document.getElementById('screen');
+const passBtn=document.getElementById('passBtn');
+const takeBtn=document.getElementById('takeBtn');
+const doneBtn=document.getElementById('doneBtn');
+const botThinkEl=document.getElementById('botThink');
+
+// ============ АУДИО ============
+let audioCtx=null;
+function initAudio(){if(audioCtx)return;try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){audioCtx=null;}}
+function tone(f,dur,type='sine',vol=0.12,when=0){
+  if(!audioCtx)return;
+  const t=audioCtx.currentTime+when;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,t);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+dur+0.02);
+}
+function sfxPlay(){initAudio();tone(660,0.06,'square',0.10);tone(880,0.06,'square',0.08,0.03);}
+function sfxBeat(){initAudio();tone(880,0.08,'triangle',0.13);tone(1100,0.08,'triangle',0.10,0.04);}
+function sfxTake(){initAudio();tone(330,0.15,'sawtooth',0.12);tone(220,0.18,'sawtooth',0.10,0.08);}
+function sfxBito(){initAudio();[523,659,784].forEach((n,i)=>tone(n,0.1,'triangle',0.14,i*0.05));}
+function sfxWin(){initAudio();[523,659,784,1046,1318].forEach((n,i)=>tone(n,0.18,'triangle',0.16,i*0.1));}
+function sfxLose(){initAudio();[523,440,349,294].forEach((n,i)=>tone(n,0.22,'sawtooth',0.14,i*0.15));}
+
+// ============ ОТРИСОВКА ============
+function cardHTML(c, cls=''){
+  const col=SUIT_COLOR[c.suit];
+  return `<div class="card ${col} ${cls}" data-id="${c.id}"><div class="rank">${c.rank}</div><div class="suit">${c.suit}</div></div>`;
+}
+function backHTML(cls=''){return `<div class="card back ${cls}"></div>`;}
+
+function render(){
+  botCardsEl.textContent = bHand.length+' карт';
+  deckCountEl.textContent = deck.length>0 ? 'Колода: '+deck.length : 'Козырь: '+(trump||'?');
+  // бот — рубашки
+  botHandEl.innerHTML='';
+  for(let i=0;i<bHand.length;i++){
+    const el=document.createElement('div');
+    el.innerHTML=backHTML('hand');
+    el.firstChild.style.cursor='default';
+    botHandEl.appendChild(el.firstChild);
+  }
+  // колода
+  if(deck.length>0){
+    deckEl.innerHTML=backHTML();
+    trumpEl.innerHTML=cardHTML(trumpCard, 'big');
+    trumpEl.firstChild.style.transform='rotate(85deg) translateX(40px)';
+  } else {
+    deckEl.innerHTML='';
+    if(trumpCard) trumpEl.innerHTML='';
+    else trumpEl.innerHTML='';
+  }
+  // стол
+  tableEl.innerHTML='';
+  table.forEach(p=>{
+    const div=document.createElement('div');
+    div.className='pair';
+    div.innerHTML = `<div class="attackCard">${cardHTML(p.a).replace('<div class="card','<div class="card')}</div>`;
+    if(p.d) div.innerHTML += `<div class="defendCard">${cardHTML(p.d)}</div>`;
+    tableEl.appendChild(div);
+  });
+  // рука игрока
+  sortHand(pHand);
+  handEl.innerHTML='';
+  pHand.forEach((c,i)=>{
+    let cls='hand';
+    if(canPlayerPlay(c)) cls+=' selectable';
+    else cls+=' dim';
+    const el=document.createElement('div');
+    el.innerHTML=cardHTML(c,cls);
+    const node=el.firstChild;
+    node.dataset.idx=i;
+    node.onclick=()=>onCardClick(i);
+    handEl.appendChild(node);
+  });
+  updateActions();
+}
+
+function canPlayerPlay(card){
+  if(turn==='p'){
+    // игрок атакует
+    if(table.length===0) return true;
+    // подкидывать можно только тем рангом, что уже на столе
+    const ranks=new Set();
+    table.forEach(p=>{ranks.add(p.a.rank); if(p.d)ranks.add(p.d.rank);});
+    // не больше 6 пар или по количеству карт у защищающегося
+    if(table.length>=6) return false;
+    if(table.filter(p=>!p.d).length>=bHand.length) return false;
+    return ranks.has(card.rank);
+  } else {
+    // игрок защищается — должен побить самую первую неотбитую
+    const idx=table.findIndex(p=>!p.d);
+    if(idx<0)return false;
+    return canBeat(table[idx].a, card, trump);
+  }
+}
+
+function updateActions(){
+  passBtn.style.display='none';
+  takeBtn.style.display='none';
+  doneBtn.style.display='none';
+  if(phase!=='playing')return;
+  if(turn==='p'){
+    // игрок атакует — может закончить (БИТО) если все отбито или просто отдать ход
+    if(table.length>0 && table.every(p=>p.d)){
+      passBtn.style.display='inline-block';
+      passBtn.textContent='БИТО';
+    }
+    statusEl.textContent='Твой ход (атака)';
+  } else {
+    // игрок защищается — может взять
+    if(table.some(p=>!p.d)){
+      takeBtn.style.display='inline-block';
+      statusEl.textContent='Защищайся!';
+    } else {
+      statusEl.textContent='Бот думает…';
+    }
+  }
+}
+
+// ============ ИГРОВАЯ ЛОГИКА ============
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function sortHand(hand){
+  // козыри слева, затем остальные масти; внутри каждой масти — по возрастанию
+  hand.sort((a,b)=>{
+    const at=a.suit===trump?0:1, bt=b.suit===trump?0:1;
+    if(at!==bt) return at-bt;
+    if(a.suit!==b.suit){
+      const order={};SUITS.forEach((s,i)=>order[s]=i);
+      return order[a.suit]-order[b.suit];
+    }
+    return RANK_VAL[a.rank]-RANK_VAL[b.rank];
+  });
+}
+
+function newGame(){
+  // 36 карт
+  deck=[];
+  RANKS.forEach(r=>SUITS.forEach(s=>deck.push(makeCard(r,s))));
+  shuffle(deck);
+  pHand=[];bHand=[];table=[];
+  // раздача по 6
+  for(let i=0;i<6;i++){pHand.push(deck.shift());bHand.push(deck.shift());}
+  // козырь — последняя карта колоды (внизу)
+  trumpCard=deck[deck.length-1];
+  trump=trumpCard.suit;
+  // кто ходит первым — у кого младший козырь
+  const pMin=lowestTrump(pHand), bMin=lowestTrump(bHand);
+  if(pMin!=null && bMin!=null) turn = pMin<bMin ? 'p' : 'b';
+  else if(pMin!=null) turn='p';
+  else if(bMin!=null) turn='b';
+  else turn=Math.random()<0.5?'p':'b';
+  phase='playing';
+  selectedIdx=null;
+  render();
+  if(turn==='b') setTimeout(botTurn, 700);
+}
+function lowestTrump(hand){
+  let m=null;
+  hand.forEach(c=>{if(c.suit===trump){if(m==null||RANK_VAL[c.rank]<m)m=RANK_VAL[c.rank];}});
+  return m;
+}
+
+// ============ ДЕЙСТВИЯ ИГРОКА ============
+function onCardClick(i){
+  if(phase!=='playing')return;
+  const c=pHand[i];
+  if(!canPlayerPlay(c))return;
+  if(turn==='p'){
+    // атака/подкидывание
+    table.push({a:c, d:null});
+    pHand.splice(i,1);
+    sfxPlay();
+    render();
+    // ход бота — защищаться
+    setTimeout(botDefend, 600);
+  } else {
+    // защита
+    const idx=table.findIndex(p=>!p.d);
+    table[idx].d=c;
+    pHand.splice(i,1);
+    sfxBeat();
+    render();
+    // после защиты бот может подкидывать ещё
+    setTimeout(botContinueAttack, 600);
+  }
+}
+
+passBtn.onclick=()=>{
+  // БИТО — игрок отдал, всё в отбой
+  if(turn!=='p')return;
+  if(!table.every(p=>p.d))return;
+  sfxBito();
+  endRound(false); // игрок успешно атаковал — переход
+};
+
+takeBtn.onclick=()=>{
+  // ВЗЯТЬ — игрок забирает все карты со стола
+  if(turn!=='b')return;
+  table.forEach(p=>{pHand.push(p.a);if(p.d)pHand.push(p.d);});
+  table=[];
+  sfxTake();
+  endRound(true, 'p'); // игрок взял — бот ходит снова
+};
+
+function endRound(taken, whoTook){
+  // добор карт: первым берёт атаковавший
+  if(turn==='p'){
+    while(pHand.length<6 && deck.length>0) pHand.push(deck.shift());
+    while(bHand.length<6 && deck.length>0) bHand.push(deck.shift());
+  } else {
+    while(bHand.length<6 && deck.length>0) bHand.push(deck.shift());
+    while(pHand.length<6 && deck.length>0) pHand.push(deck.shift());
+  }
+  table=[];
+  // если был taken — атакующий ходит снова, иначе ход переходит
+  if(!taken){
+    turn = turn==='p' ? 'b' : 'p';
+  }
+  // проверка конца игры
+  if(checkEnd()) return;
+  render();
+  if(turn==='b') setTimeout(botTurn, 700);
+}
+
+function checkEnd(){
+  if(deck.length===0 && pHand.length===0 && bHand.length===0){
+    // ничья (редко)
+    showEnd('НИЧЬЯ', '🤝', 'Ничья!');
+    return true;
+  }
+  if(deck.length===0){
+    if(pHand.length===0){
+      showEnd('ПОБЕДА!', '🏆', 'Ты выиграл, бот остался дураком!');
+      sfxWin();
+      return true;
+    }
+    if(bHand.length===0){
+      showEnd('ПРОИГРЫШ', '🤡', 'Ты дурак!');
+      sfxLose();
+      return true;
+    }
+  }
+  return false;
+}
+
+// ============ AI БОТА ============
+function botThink(text, ms){
+  botThinkEl.textContent=text;
+  botThinkEl.classList.add('show');
+  setTimeout(()=>botThinkEl.classList.remove('show'), ms||1000);
+}
+
+function botTurn(){
+  if(phase!=='playing')return;
+  if(turn!=='b')return;
+  // если стол пуст — начинает атаку с самой младшей не-козырной карты
+  if(table.length===0){
+    botThink('Атакую…');
+    // выбираем самую младшую карту (предпочтительно не козырь)
+    const sorted=[...bHand].sort((a,b)=>{
+      const ka=(a.suit===trump?100:0)+RANK_VAL[a.rank];
+      const kb=(b.suit===trump?100:0)+RANK_VAL[b.rank];
+      return ka-kb;
+    });
+    const card=sorted[0];
+    playFromBot(card);
+    setTimeout(()=>{
+      // ход игрока — защищаться
+      render();
+    }, 400);
+  } else {
+    // продолжение атаки (подкидывание)
+    tryBotKidanie();
+  }
+}
+
+function playFromBot(card){
+  const i=bHand.findIndex(c=>c.id===card.id);
+  if(i<0)return false;
+  table.push({a:card, d:null});
+  bHand.splice(i,1);
+  sfxPlay();
+  render();
+  return true;
+}
+
+function botDefend(){
+  // бот защищается от последней атаки игрока
+  if(turn!=='p')return;
+  const idx=table.findIndex(p=>!p.d);
+  if(idx<0){
+    // всё отбито — игрок может БИТО или подкинуть
+    render();
+    return;
+  }
+  const att=table[idx].a;
+  // ищем минимальную карту, которая бьёт; предпочтительно не козырь
+  const beaters=bHand.filter(c=>canBeat(att,c,trump))
+    .sort((a,b)=>{
+      const ka=(a.suit===trump?100:0)+RANK_VAL[a.rank];
+      const kb=(b.suit===trump?100:0)+RANK_VAL[b.rank];
+      return ka-kb;
+    });
+  if(beaters.length===0){
+    // берёт все
+    botThink('Беру…',900);
+    setTimeout(()=>{
+      table.forEach(p=>{bHand.push(p.a);if(p.d)bHand.push(p.d);});
+      table=[];
+      sfxTake();
+      // добор и снова ход игрока
+      while(pHand.length<6 && deck.length>0) pHand.push(deck.shift());
+      while(bHand.length<6 && deck.length>0) bHand.push(deck.shift());
+      if(checkEnd())return;
+      // turn остаётся у игрока (он атаковал, бот взял)
+      render();
+      // дать игроку возможность ходить
+    }, 700);
+    return;
+  }
+  const card=beaters[0];
+  // не сливать козыри, если можно вообще не отбивать (но мы уже знаем что нечем кроме козыря)
+  botThink('Бью!',700);
+  setTimeout(()=>{
+    const i=bHand.findIndex(c=>c.id===card.id);
+    table[idx].d=card;
+    bHand.splice(i,1);
+    sfxBeat();
+    render();
+    // теперь игрок может подкинуть или БИТО
+  }, 500);
+}
+
+function tryBotKidanie(){
+  // бот подкидывает на доотбитых — если есть карты тех же рангов
+  const ranks=new Set();
+  table.forEach(p=>{ranks.add(p.a.rank);if(p.d)ranks.add(p.d.rank);});
+  const adds=bHand.filter(c=>ranks.has(c.rank))
+    .sort((a,b)=>RANK_VAL[a.rank]-RANK_VAL[b.rank]);
+  // лимит: не больше карт чем у защищающегося, и не больше 6 пар
+  const maxPairs=Math.min(6, pHand.length+ table.filter(p=>!p.d).length);
+  const canAdd = adds.length>0 && table.length<maxPairs;
+  if(canAdd){
+    botThink('Подкидываю…',700);
+    setTimeout(()=>{
+      // подкидываем одну карту
+      const card=adds[0];
+      table.push({a:card,d:null});
+      const i=bHand.findIndex(c=>c.id===card.id);
+      bHand.splice(i,1);
+      sfxPlay();
+      render();
+      // ждать защиту игрока
+    },600);
+  } else {
+    // бот говорит БИТО — раунд закрыт, ход переходит к боту?
+    // если ВСЕ отбиты — пас (БИТО), переход хода к боту
+    if(table.every(p=>p.d)){
+      botThink('БИТО',700);
+      setTimeout(()=>{
+        sfxBito();
+        endRound(false);
+      },500);
+    } else {
+      // нечего подкидывать, но не все отбиты — это атака игрока, ждём от него защиты или БИТО
+      render();
+    }
+  }
+}
+
+// после защиты игрока — бот может подкинуть ещё (если защищался игрок)
+function botContinueAttack(){
+  if(turn!=='b')return;
+  // турн остаётся 'b' (бот атаковал), смотрим что делать
+  // если на столе все отбиты — бот пытается подкинуть или БИТО
+  if(table.every(p=>p.d)){
+    tryBotKidanie();
+  }
+}
+
+// ============ ЭКРАНЫ ============
+function showEnd(title, emoji, text){
+  phase='over';
+  screen.innerHTML=`<h1>${title}</h1>
+    <div style="font-size:90px;text-shadow:0 0 30px #fc6;">${emoji}</div>
+    <p>${text}</p>
+    <p>Карт у тебя: <b>${pHand.length}</b> &nbsp; У бота: <b>${bHand.length}</b></p>
+    <button class="btn ${title==='ПОБЕДА!'?'win':(title==='ПРОИГРЫШ'?'lose':'')}" id="again">ЕЩЁ РАЗ</button>`;
+  screen.classList.remove('hidden');
+  document.getElementById('again').onclick=()=>{screen.classList.add('hidden');newGame();};
+}
+
+function showMenu(){
+  phase='menu';
+  screen.innerHTML=`<h1>ДУРАК</h1>
+    <h2>подкидной • 36 карт</h2>
+    <p>Классическая русская карточная игра против бота.<br>
+    Кто первым избавится от всех карт — победит. Последний с картами на руках — <b>дурак</b>.</p>
+    <p style="font-size:14px;color:#9ec;">
+    <b>Как играть:</b><br>
+    🂠 Тебе дают 6 карт, козырь — масть последней карты колоды.<br>
+    ⚔️ <b>Атака</b>: кидай карту на стол. Подкидывать можно только теми же рангами.<br>
+    🛡 <b>Защита</b>: бей атакующую карту старшей той же масти или козырем.<br>
+    ✅ Все карты отбиты → нажми <b>БИТО</b> или жди БИТО от бота.<br>
+    🃏 Не можешь побить → нажми <b>ВЗЯТЬ</b> и забери все карты со стола.<br>
+    🏆 Первый ход — у кого младший козырь.</p>
+    <button class="btn" id="start">НАЧАТЬ ИГРУ</button>`;
+  screen.classList.remove('hidden');
+  document.getElementById('start').onclick=()=>{screen.classList.add('hidden');newGame();};
+}
+
+showMenu();
+</script>
+</body>
+</html>

@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ГОРОД СЛОВ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@600;800;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;user-select:none;}
+  body{font-family:'Russo One',sans-serif;background:#2a1a0a;min-height:100vh;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  #wrap{position:relative;width:840px;max-width:97vw;height:620px;max-height:94vh;
+    border-radius:14px;overflow:hidden;
+    background:linear-gradient(180deg,#3a2810 0%,#1c1208 100%);
+    box-shadow:0 0 70px rgba(220,150,60,.35);
+    border:2px solid #5a3a18;}
+  #top{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;background:linear-gradient(180deg,rgba(0,0,0,.4),transparent);}
+  #lvlInfo{color:#ffd060;font-family:'Orbitron';font-weight:800;font-size:18px;letter-spacing:2px;text-shadow:0 0 8px #000;}
+  #foundCount{color:#0fff80;font-family:'Orbitron';font-weight:800;font-size:16px;letter-spacing:1px;text-shadow:0 0 6px #000;}
+  #wordGrid{position:absolute;top:60px;left:14px;right:14px;height:240px;overflow:auto;
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;padding:8px;}
+  .wordRow{display:flex;gap:4px;justify-content:center;}
+  .cell{width:30px;height:30px;border-radius:5px;background:rgba(0,0,0,.25);border:1px solid #5a3a18;
+    display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Russo One';
+    font-size:18px;text-transform:uppercase;}
+  .cell.found{background:#4a3010;color:#ffd060;border-color:#fc6;animation:pop 0.4s;}
+  @keyframes pop{0%{transform:scale(0.5);opacity:0}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+  #current{position:absolute;top:308px;left:0;right:0;text-align:center;height:54px;
+    display:flex;align-items:center;justify-content:center;}
+  #curWord{display:inline-block;background:rgba(40,20,10,.8);border:2px solid #b88040;
+    border-radius:10px;padding:8px 22px;color:#ffd060;font-family:'Russo One';
+    font-size:28px;letter-spacing:5px;min-width:200px;min-height:46px;
+    text-transform:uppercase;text-shadow:0 0 10px #ff8800;}
+  #curWord.good{border-color:#0fff80;color:#0fff80;text-shadow:0 0 10px #0fa060;}
+  #curWord.bad{border-color:#ff5544;color:#ff5544;text-shadow:0 0 10px #ff0000;animation:shake 0.3s;}
+  #curWord.repeat{border-color:#7ec8ff;color:#7ec8ff;text-shadow:0 0 10px #1080ff;}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  #wheel{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);width:280px;height:280px;}
+  canvas{position:absolute;top:0;left:0;cursor:pointer;}
+  #bottomBar{position:absolute;bottom:14px;left:0;right:0;display:flex;justify-content:center;gap:10px;}
+  .btn{background:linear-gradient(135deg,#c87030,#803010);color:#fff;border:none;border-radius:8px;
+    padding:10px 18px;font-family:'Orbitron';font-weight:800;font-size:13px;letter-spacing:2px;
+    cursor:pointer;box-shadow:0 0 16px rgba(200,100,40,.4);text-transform:uppercase;}
+  .btn:active{transform:scale(.96);}
+  .btn.hint{background:linear-gradient(135deg,#ffaa44,#cc6600);}
+  .btn.shuffle{background:linear-gradient(135deg,#3aa8ff,#1060c0);}
+  #screen{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;color:#fce;padding:30px;
+    background:radial-gradient(ellipse at center,#3a1808 0%,#0a0402 80%);}
+  #screen.hidden{display:none;}
+  h1{font-size:48px;color:#ffd060;text-shadow:0 0 30px #ff8800;margin-bottom:8px;letter-spacing:4px;font-family:'Orbitron';}
+  h2{font-size:18px;color:#fca;letter-spacing:3px;margin-bottom:18px;font-family:'Orbitron';}
+  p{font-size:15px;line-height:1.7;margin-bottom:14px;color:#dca;max-width:560px;}
+  .bigBtn{background:linear-gradient(135deg,#ffaa44,#cc4400);color:#fff;border:none;
+    border-radius:8px;padding:14px 44px;font-family:'Orbitron';font-size:20px;font-weight:900;
+    letter-spacing:3px;cursor:pointer;box-shadow:0 0 28px rgba(255,160,60,.5);text-transform:uppercase;}
+  .bigBtn:active{transform:scale(.96);}
+  #popup{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10;
+    color:#ffd060;font-family:'Orbitron';font-weight:900;font-size:42px;letter-spacing:4px;
+    text-shadow:0 0 30px #ff8800;opacity:0;pointer-events:none;transition:.4s;}
+  #popup.show{opacity:1;transform:translate(-50%,-70%);}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="top">
+    <div id="lvlInfo">УРОВЕНЬ 1</div>
+    <div id="foundCount">0/0</div>
+  </div>
+  <div id="wordGrid"></div>
+  <div id="current"><span id="curWord">&nbsp;</span></div>
+  <div id="wheel"><canvas id="cv" width="280" height="280"></canvas></div>
+  <div id="bottomBar">
+    <button class="btn shuffle" id="shuffleBtn">🔀 ПЕРЕМЕШАТЬ</button>
+    <button class="btn hint" id="hintBtn">💡 ПОДСКАЗКА</button>
+  </div>
+  <div id="popup"></div>
+  <div id="screen"></div>
+</div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const CW=cv.width,CH=cv.height;
+const wordGridEl=document.getElementById('wordGrid');
+const curWordEl=document.getElementById('curWord');
+const lvlInfoEl=document.getElementById('lvlInfo');
+const foundCountEl=document.getElementById('foundCount');
+const popupEl=document.getElementById('popup');
+const screen=document.getElementById('screen');
+
+// ============ АУДИО ============
+let audioCtx=null;
+function initAudio(){if(audioCtx)return;try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){audioCtx=null;}}
+function tone(f,dur,type='sine',vol=0.12,when=0){
+  if(!audioCtx)return;
+  const t=audioCtx.currentTime+when;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,t);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+dur+0.02);
+}
+function sfxTap(){initAudio();tone(660,0.04,'square',0.10);}
+function sfxFound(){initAudio();[523,659,784,1046].forEach((n,i)=>tone(n,0.14,'triangle',0.16,i*0.07));}
+function sfxBad(){initAudio();tone(220,0.15,'sawtooth',0.14);}
+function sfxRepeat(){initAudio();tone(440,0.1,'sine',0.12);tone(440,0.1,'sine',0.10,0.12);}
+function sfxLevel(){initAudio();[523,659,784,1046,1318].forEach((n,i)=>tone(n,0.18,'triangle',0.18,i*0.1));}
+
+// ============ СЛОВАРЬ (для генерации уровней и распознавания "дополнительных") ============
+const DICT = (`
+кот ток кто кит сок сон нос лес сел лук куст стук тук мир рим рот род рок ром
+лето тело тол лот лом лес лис лиса лист лицо ласа лава лань
+роза раз роз рота рот око бок бак бык бал бар вар вор вол волк ворс вода воин
+снег нес сен ген сена сено сети сеть сера серп сила сало
+кран рак кар нар ран ракс кара карп кант акт ара арка арфа атом
+кино кони кон ион они инок ноль ноша нога ножи носок ночь
+стол сот лот тол сто сук сын сын сыр сыч сюда суп
+карта кара рак акт тара арка карт картон карат катер
+город гор род рог гора горд горн груз гриб гром грозы
+комета том кот мак мат мета метка метр меч метла молоко
+ракета река рак кара карта акт ракурс рана рана раут резец
+слоник слон кино кон ион они сон лис кол сок скол сток
+коробка короб кора бок рак бор краб ров рок боб боц
+самокат сам мак мат кот оса скат том сома такса
+картошка карта кора рак шок кошка рота кот корт каша
+бутерброд борт род дуб тур рот бур орбита удод дрозд
+дом мор мать мать мама папа сын сын сыр сыр семь
+семья сеть сила сало сало сено село себя сера
+сила сила сук сила
+вода ваза вата ванна ваня
+двор двое день дело
+ель ему еда едкий
+жар жук жук жидкость
+зал заря закат запад
+игла игра ива ива иго
+край кран кошка кубок куб кус кит кит кит
+лето линия лиса лук лук лук луг лес лес лес
+море мама мак мак мат меч мел мех
+ночь нора нос ноль нож
+око оса овца омут
+поле полк пол пар пар пик пар пас пес пес
+рот ров ров рот раз рад рад рад рот
+сад сан сок сон сом сын сын сыр сын
+тон ток том тур тут тук тут таз
+ум ус усы умом
+фа факт фасоль ферма
+хор холм холод
+цапля цех
+час чуб чан чай чек
+шар шут шум шов
+эра это
+юбка юг
+яд як яма ярый
+автор атом ангел арка арфа армия архив астра
+банан баня барк барс бат бал бар бас бак бой бок бор бот
+вагон ваза ванна вата веер вес весы веко вода
+гамма гараж гид гимн глаз гном год голос гора груз
+дача дед день дело диск доза доза доза дом
+ёж ёрш
+жаба жакет жало жар жил жук
+заря закат загар замок зал зебра злак знак зной зов
+изба икра иней иной игра иней ишак
+кабан кабинет кадр казак калач калина камень канал капот карат каре кафе кашне
+лагерь лак лама лапа ласт лава лавр лаз лай ласка
+магия майор макет малыш мама манго мания март маска
+наган наказ напор натиск науч нахал начало
+обои овес овраг огарок ожог окно орех осот осколок отель
+пакет палата палач панда папа парад парик пасть патент паук пенал перец печь пират полк
+работа радар радуга разум район ранец рапс рассвет ратник рация
+сабля сабо сад сазан сайка сало салат самовар самосад самшит сатин
+табор табун таз тайга такса танк татуаж
+улей улика умысел упор урка ушат
+факт фаза факел факт фант фара ферма фигура флаг
+хан халва халат хам хан хата хвост химик хирург
+цапля царь цинк цех цикл цинга цифра
+чабан чай чан час чек чин чудак
+шаг шакал шар шарф шасси шест шеф шифр
+эра эпос эра эфир
+юг юг
+яблоко яд яйцо яма
+зима зимний север сегодня сейчас сено
+скала скат сказ слива слон слово смех снег снижение собака сова совесть совет совок сок солнце сорт сосна
+танец тапок тариф творог тембр тент тигр тихо ток том торг
+угол угорь удар уезд узел узор укор улей
+факел фара ферма финик финиш фокус формат форум фронт
+хвост химик хирург хлеб хобот ход холм холод хор хорда
+чашка чахл челн чемпион червь черёд чесать чибис число чудеса
+шакал шалаш шампунь шарф шатер шашлык шеф шик шов шок шорох
+эпос экран эфир этап
+юбилей юг
+ягода ядро язык
+балет банк баран барс батон башня
+велосипед век ветер ветка вечер взгляд взгляд взлет взрыв вид вилка
+гавань газета газон гитара глобус голос голубь гордость горка горло гость
+дворец девиз дельфин день деньги дерево дети джин дисплей доктор дождь долг дом дорога доска
+елка ель ересь
+женщина жена жесть жето жидкость
+завод задача замок заря земля знание зной зодиак золото зонт
+игра идея изба индекс инжир иголка
+кабинет калач канал капитан карман картина квадрат кефир ключ книга колодец комета комод компас конь корзина король корова косяк край кран краска крепость крик крот кролик крупа крыло куница куст
+лавр лагерь лак лампа ласка лебедь лев лес лестница лето лимит лиса литр лицо лоб лодка лопата
+магазин макет малыш мама манга мармелад маршал маска мастер мат материк мать машина мебель медведь мел мера мерка металл метель метла мечта миг минута мир молот молоко море мост моток мрак мрамор муза мука мукам музыка муравей мысль мышь
+наблюдение надежда наладка наличие народ нарост наряд нарыв насадка насос настойка натиск находка начало небо нерв нога нож носорог ночь
+обед облако обман общий овца огонь огород одежда озеро океан окно окоп окорок окраина опара опера орех осока остров отвага отель отлив отрог охота
+парад парта пастух паук певец пеликан пенал перо пиво пилот пицца плата плащ платье пляж погода подвиг поезд позиция полк полнота поляна порода порт посёлок посуда поход правда практика приз прибор привет приказ принц прыжок пугало пыль пюре
+работа радуга разрыв район раковина рассвет ребро регион резерв резон река рекорд рельс ремесло ринг рис рисунок ритм робот род родник рожь рожок розетка ромашка росток рост рубль рука рулет руль рыба рынок рысь рябина
+сад сало санки сатин сахар свет свинья север секрет село семь сера серп сила синица сирень склад скол скрипка слабак сладость след слива слово слон слух смерч снимок собор совет совок солнце сорт сосна сотня спорт способ срок ствол стекло степь стол сторона страна стрела стрелок стрелы строка ступа сук сук сумка суп
+табун танк тарелка творог театр тембр тень терем терка тигр тихо ткач товар топор торт точка точность трава трактор тренер труба трус туман турист
+угол ударник удача узор укол улей улыбка ум ум умолот упор урок усадьба учитель
+факел факт фара фасад ферма фигура финал финт фирма флаг флакон фокус фон фонтан форма фотограф фраза фронт фрукт фундук
+хам хан характер хата хвост химия химик хирург хлам хлеб хлопок хобот ход холм холод хор хорда хохол храбрость храм хрен
+цапля царство цвет цемент цех цикл цинк цирк цифра цыган
+чабан чайник чан час часть чашка человек червяк чердак череп черный четверг число читатель чудо
+шаблон шайка шакал шалаш шансон шапка шар шарф шасси шатер шашлык шеренга шерсть шеф шик шифр школа шкура шлем шов шок шорох шофер шпион шум
+щит щука щель
+эгоизм экзамен экипаж экран эпоха эпос эра эфир этап эхо
+юбилей юбка юг юмор юнга юный
+ягода язык якорь яма ярлык ясень ястреб ящер ящик
+`).split(/\s+/).filter(w=>w.length>=2).map(w=>w.toLowerCase());
+
+// уникальный set
+const DICT_SET = new Set(DICT);
+
+// ============ ГЕНЕРАЦИЯ УРОВНЕЙ ============
+// Берём случайное "ключевое" слово 3-9 букв, его буквы → набор для уровня
+// Затем ищем в словаре все слова, которые можно собрать из этих букв
+function canMakeWord(word, lettersCount){
+  const c={...lettersCount};
+  for(const ch of word){
+    if(!c[ch])return false;
+    c[ch]--;
+  }
+  return true;
+}
+function countLetters(letters){
+  const c={};letters.forEach(l=>c[l]=(c[l]||0)+1);
+  return c;
+}
+
+// слова разной длины для прогрессии
+const KEY_WORDS_BY_LEN = {
+  3:['кот','сон','лес','мир'],
+  4:['роза','снег','кран','кино','стол','лето','куст'],
+  5:['карта','город','книга','доска','лампа','школа','забор','песок'],
+  6:['комета','ракета','слоник','машина','банан','рынок'],
+  7:['коробка','самокат','капитан','караван','рассказ','стрелок'],
+  8:['картошка','календарь','коридор','аппарат','аромат'],
+  9:['бутерброд','велосипед','небосвод','солнышко']
+};
+
+// === Генерация уровней
+const KEY_COUNTER={};
+const KEY_LISTS={};
+let prevKey=null; // последний выданный ключ — на следующем уровне не повторим
+function shuffleArr(a){const c=a.slice();for(let i=c.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[c[i],c[j]]=[c[j],c[i]];}return c;}
+for(const k in KEY_WORDS_BY_LEN){
+  KEY_LISTS[k]=shuffleArr(KEY_WORDS_BY_LEN[k]);
+  KEY_COUNTER[k]=0;
+}
+
+function pickKey(len, avoid){
+  const list=KEY_LISTS[String(len)];
+  if(!list || list.length===0) return null;
+  // пробуем найти ключ, отличный от avoid
+  for(let tries=0;tries<list.length+1;tries++){
+    const idx=KEY_COUNTER[String(len)] % list.length;
+    KEY_COUNTER[String(len)]++;
+    const k=list[idx];
+    if(k!==avoid) return k;
+  }
+  // если все совпадают (только 1 ключ в списке) — вернём как есть
+  return list[0];
+}
+
+function generateLevel(idx){
+  let targetLen;
+  if(idx<3) targetLen=3;
+  else if(idx<7) targetLen=4;
+  else if(idx<11) targetLen=5;
+  else if(idx<16) targetLen=6;
+  else if(idx<21) targetLen=7;
+  else if(idx<27) targetLen=8;
+  else targetLen=9;
+  if(idx>=30) targetLen=5+Math.floor(Math.random()*5);
+
+  const listLen=(KEY_LISTS[String(targetLen)]||[]).length;
+  for(let attempt=0;attempt<Math.max(listLen,1)*2;attempt++){
+    const key=pickKey(targetLen, prevKey);
+    if(!key) break;
+    const letters=key.split('');
+    const cnt=countLetters(letters);
+    const candidates=DICT.filter(w=>w.length>=2 && w.length<=letters.length && canMakeWord(w,cnt));
+    const uniq=[...new Set(candidates)];
+    if(uniq.length>=3){
+      uniq.sort((a,b)=>a.length-b.length||a.localeCompare(b));
+      const shown=new Set();
+      if(uniq.includes(key)) shown.add(key);
+      for(const w of uniq){
+        if(shown.size>=7)break;
+        shown.add(w);
+      }
+      prevKey=key;
+      return {letters, key, words:[...shown].slice(0,7), fullDict:new Set(uniq)};
+    }
+  }
+  prevKey='кран';
+  return {letters:['к','р','а','н'],key:'кран',words:['кран','рак','кар','нар','ран'],fullDict:new Set(['кран','рак','кар','нар','ран'])};
+}
+
+// ============ СОСТОЯНИЕ ============
+let curLevel=0;
+let currentLvl=null; // {letters, words, fullDict}
+let activeLetters=[];
+let foundWords=new Set();  // основные слова уровня
+let bonusWords=new Set();  // дополнительные (из словаря, не в списке уровня)
+let mouseDown=false, path=[];
+let curStr='';
+
+const CENTER={x:CW/2,y:CH/2}, RADIUS=100, LETTER_R=28;
+
+function layoutLetters(){
+  const lvl=currentLvl;
+  activeLetters=[];
+  const n=lvl.letters.length;
+  const r = n<=5 ? 95 : (n<=7 ? 105 : 115);
+  const lr = n<=5 ? 28 : (n<=7 ? 24 : 22);
+  for(let i=0;i<n;i++){
+    const a=-Math.PI/2+(i/n)*Math.PI*2;
+    activeLetters.push({
+      ch:lvl.letters[i],
+      x:CENTER.x+Math.cos(a)*r,
+      y:CENTER.y+Math.sin(a)*r,
+      r:lr,
+      used:false,idx:i
+    });
+  }
+}
+
+function drawWheel(){
+  ctx.clearRect(0,0,CW,CH);
+  const lr0=activeLetters[0]?activeLetters[0].r:28;
+  ctx.beginPath();ctx.arc(CENTER.x,CENTER.y,(activeLetters[0]?Math.hypot(activeLetters[0].x-CENTER.x,activeLetters[0].y-CENTER.y):RADIUS)+lr0+10,0,7);
+  ctx.fillStyle='rgba(0,0,0,.25)';ctx.fill();
+  ctx.strokeStyle='#b88040';ctx.lineWidth=3;ctx.stroke();
+  if(path.length>1){
+    ctx.strokeStyle='#ffd060';ctx.lineWidth=6;ctx.lineCap='round';
+    ctx.beginPath();
+    path.forEach((idx,i)=>{
+      const L=activeLetters[idx];
+      if(i===0) ctx.moveTo(L.x,L.y);else ctx.lineTo(L.x,L.y);
+    });
+    ctx.stroke();
+  }
+  activeLetters.forEach(L=>{
+    const sel=path.includes(L.idx);
+    ctx.beginPath();ctx.arc(L.x,L.y,L.r,0,7);
+    ctx.fillStyle=sel?'#ffd060':'#3a2818';
+    ctx.shadowColor=sel?'#ff8800':'rgba(0,0,0,0)';
+    ctx.shadowBlur=sel?15:0;
+    ctx.fill();ctx.shadowBlur=0;
+    ctx.strokeStyle=sel?'#fff':'#b88040';ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle=sel?'#3a2010':'#ffd9a0';
+    ctx.font=(L.r-2)+'px Russo One';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(L.ch.toUpperCase(),L.x,L.y);
+  });
+}
+
+function renderWordGrid(){
+  wordGridEl.innerHTML='';
+  const lvl=currentLvl;
+  const sorted=[...lvl.words].sort((a,b)=>{if(a.length!==b.length)return a.length-b.length;return a.localeCompare(b);});
+  const byLen={};
+  sorted.forEach(w=>{const k=w.length;if(!byLen[k])byLen[k]=[];byLen[k].push(w);});
+  Object.keys(byLen).sort((a,b)=>a-b).forEach(len=>{
+    byLen[len].forEach(w=>{
+      const row=document.createElement('div');row.className='wordRow';
+      for(let i=0;i<w.length;i++){
+        const c=document.createElement('div');c.className='cell';
+        if(foundWords.has(w)){c.classList.add('found');c.textContent=w[i].toUpperCase();}
+        row.appendChild(c);
+      }
+      wordGridEl.appendChild(row);
+    });
+  });
+  // показать бонусные слова в одну строку внизу
+  if(bonusWords.size>0){
+    const bonusBar=document.createElement('div');
+    bonusBar.style.cssText='display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-top:8px;max-width:100%;';
+    bonusBar.innerHTML='<div style="width:100%;text-align:center;color:#7ec8ff;font-family:Orbitron;font-size:11px;letter-spacing:2px;margin-bottom:2px;">⭐ ДОПОЛНИТЕЛЬНЫЕ:</div>';
+    [...bonusWords].forEach(w=>{
+      const tag=document.createElement('div');
+      tag.style.cssText='background:rgba(40,80,140,.5);border:1px solid #7ec8ff;color:#cef;border-radius:5px;padding:2px 8px;font-size:13px;font-family:Russo One;text-transform:uppercase;';
+      tag.textContent=w;
+      bonusBar.appendChild(tag);
+    });
+    wordGridEl.appendChild(bonusBar);
+  }
+  foundCountEl.textContent=foundWords.size+'/'+lvl.words.length + (bonusWords.size>0?' +'+bonusWords.size:'');
+}
+
+function mousePos(e){const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*(CW/r.width),y:(e.clientY-r.top)*(CH/r.height)};}
+function letterAt(x,y){
+  for(const L of activeLetters){if(Math.hypot(L.x-x,L.y-y)<L.r+2)return L;}
+  return null;
+}
+function startDrag(e){
+  initAudio();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();
+  const {x,y}=mousePos(e);const L=letterAt(x,y);
+  if(L){mouseDown=true;path=[L.idx];curStr=L.ch;sfxTap();updateCurWord('');drawWheel();}
+}
+function moveDrag(e){
+  if(!mouseDown)return;
+  const {x,y}=mousePos(e);const L=letterAt(x,y);
+  if(L){
+    if(!path.includes(L.idx)){
+      path.push(L.idx);curStr+=L.ch;sfxTap();updateCurWord('');drawWheel();
+    } else if(path.length>=2 && path[path.length-2]===L.idx){
+      path.pop();curStr=curStr.slice(0,-1);updateCurWord('');drawWheel();
+    }
+  }
+}
+function endDrag(){if(!mouseDown)return;mouseDown=false;checkWord();}
+
+cv.addEventListener('mousedown',startDrag);
+cv.addEventListener('mousemove',moveDrag);
+window.addEventListener('mouseup',endDrag);
+cv.addEventListener('touchstart',e=>{e.preventDefault();startDrag(e.touches[0]);},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();moveDrag(e.touches[0]);},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();endDrag();},{passive:false});
+
+function updateCurWord(stateCls){
+  curWordEl.textContent=curStr.toUpperCase()||'\u00A0';
+  curWordEl.className='';
+  if(stateCls)curWordEl.classList.add(stateCls);
+}
+
+function checkWord(){
+  if(curStr.length<2){path=[];curStr='';updateCurWord('');drawWheel();return;}
+  const lvl=currentLvl;
+  // Уже найденное (основное или бонус)
+  if(foundWords.has(curStr) || bonusWords.has(curStr)){
+    updateCurWord('repeat');sfxRepeat();
+    setTimeout(()=>{path=[];curStr='';updateCurWord('');drawWheel();},400);
+    return;
+  }
+  if(lvl.words.includes(curStr)){
+    // основное слово уровня
+    foundWords.add(curStr);
+    updateCurWord('good');sfxFound();
+    showPopup('+1');
+    renderWordGrid();
+    setTimeout(()=>{
+      path=[];curStr='';updateCurWord('');drawWheel();
+      if(foundWords.size>=lvl.words.length) levelComplete();
+    },700);
+  } else if(lvl.fullDict.has(curStr)){
+    // дополнительное слово — есть в словаре, но не в основном списке
+    bonusWords.add(curStr);
+    updateCurWord('good');sfxFound();
+    showPopup('⭐ ДОПОЛНИТЕЛЬНОЕ!');
+    renderWordGrid();
+    setTimeout(()=>{path=[];curStr='';updateCurWord('');drawWheel();},900);
+  } else {
+    updateCurWord('bad');sfxBad();
+    setTimeout(()=>{path=[];curStr='';updateCurWord('');drawWheel();},500);
+  }
+}
+
+function showPopup(txt){popupEl.textContent=txt;popupEl.classList.add('show');setTimeout(()=>popupEl.classList.remove('show'),600);}
+
+document.getElementById('shuffleBtn').onclick=()=>{
+  const arr=activeLetters.map(L=>L.ch);
+  for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
+  for(let i=0;i<activeLetters.length;i++) activeLetters[i].ch=arr[i];
+  drawWheel();sfxTap();
+};
+document.getElementById('hintBtn').onclick=()=>{
+  const lvl=currentLvl;
+  const remain=lvl.words.filter(w=>!foundWords.has(w));
+  if(remain.length===0)return;
+  const w=remain.sort((a,b)=>a.length-b.length)[0];
+  foundWords.add(w);sfxFound();showPopup('💡 '+w.toUpperCase());
+  renderWordGrid();
+  if(foundWords.size>=lvl.words.length) setTimeout(levelComplete,800);
+};
+
+function startLevel(idx){
+  curLevel=idx;
+  currentLvl=generateLevel(idx);
+  foundWords.clear();
+  bonusWords.clear();
+  layoutLetters();drawWheel();renderWordGrid();
+  curStr='';path=[];updateCurWord('');
+  lvlInfoEl.textContent='УРОВЕНЬ '+(curLevel+1);
+  screen.classList.add('hidden');
+}
+
+function levelComplete(){
+  sfxLevel();
+  const bonusText = bonusWords.size>0 ? `<br><span style="color:#7ec8ff">⭐ Бонусных слов: ${bonusWords.size}</span>` : '';
+  screen.innerHTML=`<h1>🎉 УРОВЕНЬ ${curLevel+1} ПРОЙДЕН!</h1>
+    <p>Все ${currentLvl.words.length} слов найдены.${bonusText}</p>
+    <p style="font-size:14px;color:#fca;">Дальше — уровень <b>${curLevel+2}</b></p>
+    <button class="bigBtn" id="next">ДАЛЬШЕ ➔</button>`;
+  screen.classList.remove('hidden');
+  document.getElementById('next').onclick=()=>startLevel(curLevel+1);
+}
+
+function showMenu(){
+  screen.innerHTML=`<h1>ГОРОД СЛОВ</h1>
+    <h2>составь слова из букв</h2>
+    <p>Перед тобой буквы по кругу. <b>Удерживай мышь</b> и проведи линию по буквам, чтобы собрать слово.</p>
+    <p style="font-size:14px;color:#fca;">
+    🔀 ПЕРЕМЕШАТЬ — поменять буквы местами<br>
+    💡 ПОДСКАЗКА — открыть одно слово за тебя<br>
+    ⭐ Найдёшь слово, которого нет в списке? Получишь <b>ДОПОЛНИТЕЛЬНОЕ</b>!<br>
+    Уровней: <b>бесконечно</b> — играй сколько хочешь</p>
+    <button class="bigBtn" id="start">НАЧАТЬ</button>`;
+  screen.classList.remove('hidden');
+  document.getElementById('start').onclick=()=>{
+    for(const k in KEY_WORDS_BY_LEN){
+      KEY_LISTS[k]=shuffleArr(KEY_WORDS_BY_LEN[k]);
+      KEY_COUNTER[k]=0;
+    }
+    prevKey=null;
+    startLevel(0);
+  };
+}
+
+showMenu();
+</script>
+</body>
+</html>

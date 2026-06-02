@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ГЕЙМЕРСКИЙ УГОЛОК</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@600;800;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Russo One',sans-serif;background:#05080f;color:#e0e8f0;min-height:100vh;
+    background-image:
+      radial-gradient(ellipse at top,#1a2540 0%,transparent 60%),
+      radial-gradient(ellipse at bottom,#2a1a40 0%,transparent 60%),
+      linear-gradient(180deg,#05080f,#0a0510);}
+  header{text-align:center;padding:50px 20px 30px;}
+  h1{font-family:'Orbitron',sans-serif;font-size:44px;letter-spacing:5px;font-weight:900;
+    background:linear-gradient(135deg,#7ec8ff,#a070ff,#ff70cc);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 60px rgba(120,180,255,.3);margin-bottom:8px;}
+  .sub{color:#9ab;font-family:'Orbitron';letter-spacing:3px;font-size:14px;}
+  .by{color:#fc6;margin-top:8px;letter-spacing:2px;font-size:13px;font-family:'Orbitron';}
+  .grid{max-width:1100px;margin:30px auto 60px;padding:0 20px;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px;}
+  .card{position:relative;background:linear-gradient(135deg,#141b2a,#0a0e18);
+    border:1px solid #2a3a55;border-radius:14px;padding:22px 18px;
+    text-align:center;text-decoration:none;color:#e0e8f0;display:flex;flex-direction:column;
+    align-items:center;gap:8px;transition:.2s;overflow:hidden;cursor:pointer;}
+  .card::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%, var(--col,#7ec8ff)22%,transparent 70%);opacity:.18;pointer-events:none;}
+  .card:hover{transform:translateY(-4px);border-color:var(--col,#7ec8ff);
+    box-shadow:0 8px 30px rgba(120,180,255,.25);}
+  .card:active{transform:translateY(-1px);}
+  .ico{font-size:62px;line-height:1;margin-top:4px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.5));}
+  .name{font-family:'Orbitron';font-size:18px;letter-spacing:2px;font-weight:800;color:#fff;}
+  .desc{font-size:12px;color:#9ab;line-height:1.5;min-height:36px;}
+  .tag{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.4);
+    color:var(--col,#7ec8ff);border:1px solid var(--col,#7ec8ff);
+    font-family:'Orbitron';font-size:9px;letter-spacing:1px;
+    padding:3px 7px;border-radius:4px;font-weight:800;}
+  footer{text-align:center;padding:40px 20px;color:#789;font-size:13px;line-height:1.7;}
+  footer a{color:#9cf;}
+  @media(max-width:520px){
+    h1{font-size:28px;letter-spacing:2px;}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;}
+    .card{padding:16px 10px;}
+    .ico{font-size:46px;}
+    .name{font-size:14px;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>ГЕЙМЕРСКИЙ УГОЛОК</h1>
+  <div class="sub">▼ КОЛЛЕКЦИЯ МИНИ-ИГР ▼</div>
+  <div class="by">12 игр • своими руками</div>
+</header>
+
+<div class="grid">
+
+  <a class="card" href="stalker_zone.html" style="--col:#88ff44">
+    <span class="tag">FPS</span>
+    <div class="ico">☢️</div>
+    <div class="name">ЗОНА</div>
+    <div class="desc">Сталкер в Зоне — снорки, АК-47, аптечки</div>
+  </a>
+
+  <a class="card" href="wave_shooter.html" style="--col:#ff5544">
+    <span class="tag">SHOOTER</span>
+    <div class="ico">⚡</div>
+    <div class="name">ВОЛНЫ</div>
+    <div class="desc">Бесконечные волны врагов и мегабоссы</div>
+  </a>
+
+  <a class="card" href="invasion.html" style="--col:#a070ff">
+    <span class="tag">СЮЖЕТ</span>
+    <div class="ico">👾</div>
+    <div class="name">ВТОРЖЕНИЕ</div>
+    <div class="desc">4 миссии, инопланетяне, прокачка оружия</div>
+  </a>
+
+  <a class="card" href="aftermath.html" style="--col:#e09c40">
+    <span class="tag">СЮЖЕТ</span>
+    <div class="ico">🌍</div>
+    <div class="name">ПОСЛЕ ВСЕГО</div>
+    <div class="desc">Постапокалипсис, путь к оазису</div>
+  </a>
+
+  <a class="card" href="cashier.html" style="--col:#22e090">
+    <span class="tag">СИМУЛЯТОР</span>
+    <div class="ico">🏪</div>
+    <div class="name">КАССИР</div>
+    <div class="desc">Мини-маркет «Уголок», касса и сдача</div>
+  </a>
+
+  <a class="card" href="fisherman.html" style="--col:#7ec8ff">
+    <span class="tag">АРКАДА</span>
+    <div class="ico">🎣</div>
+    <div class="name">РЫБАК</div>
+    <div class="desc">3 этапа: ловля → чистка → кормление</div>
+  </a>
+
+  <a class="card" href="shooter.html" style="--col:#ffaa44">
+    <span class="tag">ТИР</span>
+    <div class="ico">🎯</div>
+    <div class="name">МЕТКИЙ СТРЕЛОК</div>
+    <div class="desc">50 секунд, 1000 очков, не попади в бомбу</div>
+  </a>
+
+  <a class="card" href="observation.html" style="--col:#0fff80">
+    <span class="tag">ХОРРОР</span>
+    <div class="ico">🌙</div>
+    <div class="name">СМЕНА ОХРАНЫ</div>
+    <div class="desc">Торговый центр ночью, 5 камер, аномалии</div>
+  </a>
+
+  <a class="card" href="durak.html" style="--col:#fc6">
+    <span class="tag">КАРТЫ</span>
+    <div class="ico">🃏</div>
+    <div class="name">ДУРАК</div>
+    <div class="desc">Подкидной на 36 карт против бота</div>
+  </a>
+
+  <a class="card" href="sandbox.html" style="--col:#ff70cc">
+    <span class="tag">SANDBOX</span>
+    <div class="ico">🍉</div>
+    <div class="name">ПЕСОЧНИЦА</div>
+    <div class="desc">Физика, оружие, химия — твори что хочешь</div>
+  </a>
+
+  <a class="card" href="words.html" style="--col:#ffd060">
+    <span class="tag">ГОЛОВОЛОМКА</span>
+    <div class="ico">🍳</div>
+    <div class="name">ГОРОД СЛОВ</div>
+    <div class="desc">Бесконечные уровни, составляй слова</div>
+  </a>
+
+  <a class="card" href="defense.html" style="--col:#ff7733">
+    <span class="tag">DEFENSE</span>
+    <div class="ico">🛡️</div>
+    <div class="name">ЗАЩИТА БАЗЫ</div>
+    <div class="desc">Волны врагов, стрелки, боссы — выживай!</div>
+  </a>
+
+</div>
+
+<footer>
+  Сделано с любовью 💛<br>
+  Кликни на любую карточку, чтобы играть
+</footer>
+
+</body>
+</html>
