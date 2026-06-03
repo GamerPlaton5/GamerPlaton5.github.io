@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Крестики-нолики — МИР НАСТОЛОК</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg1:#1a0b2e; --bg2:#2d1b4e; --bg3:#0f0620;
+    --violet:#9d4edd; --violet-bright:#c77dff; --violet-deep:#7b2cbf;
+    --gold:#ffd60a; --green:#52ff8f; --red:#ff5c7a; --blue:#4ea8ff;
+    --ink:#f0e9ff; --muted:#b39ddb;
+    --card:rgba(157,78,221,.10); --line:rgba(199,125,255,.28);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{font-family:'Orbitron',sans-serif;color:var(--ink);
+    background:radial-gradient(900px 600px at 50% -10%, rgba(157,78,221,.30), transparent 60%),linear-gradient(160deg,var(--bg1),var(--bg3) 55%,var(--bg2));
+    background-attachment:fixed;min-height:100vh;display:flex;justify-content:center;padding:18px 14px 40px;overflow-x:hidden;}
+  .wrap{width:100%;max-width:420px;display:flex;flex-direction:column;gap:18px;}
+  .ico{display:block;text-align:center;font-size:40px;}
+  .title{text-align:center;font-family:'Russo One',sans-serif;font-size:clamp(24px,7vw,30px);letter-spacing:1px;
+    background:linear-gradient(180deg,#fff,var(--violet-bright));-webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 24px rgba(199,125,255,.35);margin-top:-2px;}
+  .sub{text-align:center;color:var(--muted);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:-6px;}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:22px 18px;backdrop-filter:blur(10px);box-shadow:0 18px 50px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);}
+  .label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:14px 0 8px;display:block;}
+  .label:first-of-type{margin-top:0;}
+  .seg{display:flex;gap:8px;}
+  .seg button{flex:1;padding:14px 4px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:14px;font-family:'Russo One',sans-serif;font-size:15px;cursor:pointer;transition:.18s;}
+  .seg button.on{background:linear-gradient(180deg,var(--violet),var(--violet-deep));border-color:var(--violet-bright);box-shadow:0 0 18px rgba(157,78,221,.6);}
+  #lvlRow{display:none;}
+  .btn{width:100%;padding:16px;border:none;border-radius:16px;cursor:pointer;font-family:'Russo One',sans-serif;font-size:17px;letter-spacing:.5px;transition:.18s;margin-top:16px;}
+  .btn:active{transform:scale(.97);}
+  .btn-main{background:linear-gradient(135deg,var(--violet-bright),var(--violet-deep));color:#fff;box-shadow:0 10px 26px rgba(123,44,191,.55);}
+  .btn-ghost{background:transparent;color:var(--violet-bright);border:1px solid var(--line);margin-top:10px;}
+
+  #game{display:none;}
+  .scorebar{display:flex;justify-content:space-between;gap:10px;margin-bottom:16px;}
+  .score{flex:1;text-align:center;background:rgba(15,6,32,.5);border:1px solid var(--line);border-radius:14px;padding:10px 6px;}
+  .score .who{font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+  .score .mark{font-family:'Russo One',sans-serif;font-size:22px;}
+  .score .mark.x{color:var(--blue);}
+  .score .mark.o{color:var(--red);}
+  .score .val{font-family:'Russo One',sans-serif;font-size:20px;margin-top:2px;}
+  .score.turn{border-color:var(--gold);box-shadow:0 0 16px rgba(255,214,10,.35);}
+
+  .status{text-align:center;font-family:'Russo One',sans-serif;font-size:18px;min-height:24px;margin-bottom:14px;letter-spacing:.5px;}
+  .status.x{color:var(--blue);}.status.o{color:var(--red);}.status.draw{color:var(--gold);}
+
+  .board{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;aspect-ratio:1/1;}
+  .cell{
+    background:linear-gradient(160deg,rgba(157,78,221,.14),rgba(157,78,221,.05));
+    border:1px solid var(--line);border-radius:18px;display:grid;place-items:center;
+    font-family:'Russo One',sans-serif;font-size:clamp(40px,16vw,72px);cursor:pointer;
+    transition:transform .1s, background .15s, box-shadow .15s;user-select:none;
+  }
+  .cell:active{transform:scale(.96);}
+  .cell.x{color:var(--blue);text-shadow:0 0 18px rgba(78,168,255,.55);}
+  .cell.o{color:var(--red);text-shadow:0 0 18px rgba(255,92,122,.55);}
+  .cell.win{background:linear-gradient(160deg,rgba(255,214,10,.30),rgba(255,214,10,.08));border-color:var(--gold);box-shadow:0 0 22px rgba(255,214,10,.5);}
+  .cell.dis{cursor:default;}
+  .mk{animation:pop .2s ease;}
+  @keyframes pop{from{opacity:0;transform:scale(.4);}to{opacity:1;transform:scale(1);}}
+
+  .gbtns{display:flex;gap:10px;margin-top:18px;}
+  .gbtns .btn{margin-top:0;}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(40px);background:var(--violet-deep);color:#fff;padding:12px 22px;border-radius:30px;font-size:13px;opacity:0;transition:.3s;pointer-events:none;z-index:50;box-shadow:0 12px 30px rgba(0,0,0,.5);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <span class="ico">❌⭕</span>
+    <div class="title">КРЕСТИКИ-НОЛИКИ</div>
+    <div class="sub">МИР НАСТОЛОК</div>
+  </div>
+
+  <!-- ВЫБОР -->
+  <div class="panel" id="setup">
+    <span class="label">Режим</span>
+    <div class="seg" id="segMode"><button data-m="bot" class="on">🤖 С ботом</button><button data-m="duo">👥 Вдвоём</button></div>
+
+    <div id="lvlRow">
+      <span class="label">Сложность бота</span>
+      <div class="seg" id="segLvl"><button data-l="easy" class="on">😺 Лёгкий</button><button data-l="mid">🦊 Средний</button><button data-l="hard">🤖 Сложный</button></div>
+    </div>
+
+    <span class="label">Кто ходит первым (❌)</span>
+    <div class="seg" id="segFirst"><button data-f="you" class="on">Я</button><button data-f="opp">Соперник</button></div>
+
+    <button class="btn btn-main" id="goBtn">🎮 ИГРАТЬ</button>
+  </div>
+
+  <!-- ИГРА -->
+  <div class="panel" id="game">
+    <div class="scorebar">
+      <div class="score" id="scX"><div class="who" id="whoX">Ты</div><div class="mark x">❌</div><div class="val" id="vX">0</div></div>
+      <div class="score" id="scD"><div class="who">Ничьи</div><div class="mark" style="color:var(--gold)">🤝</div><div class="val" id="vD">0</div></div>
+      <div class="score" id="scO"><div class="who" id="whoO">Бот</div><div class="mark o">⭕</div><div class="val" id="vO">0</div></div>
+    </div>
+
+    <div class="status" id="status">Ход: ❌</div>
+    <div class="board" id="board"></div>
+
+    <div class="gbtns">
+      <button class="btn btn-main" id="againBtn">🔄 ЗАНОВО</button>
+      <button class="btn btn-ghost" id="menuBtn" style="margin-top:0;">☰ МЕНЮ</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+  const $=(id)=>document.getElementById(id);
+  function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1600);}
+
+  let MODE="bot";       // bot | duo
+  let LEVEL="easy";     // easy | mid | hard
+  let FIRST="you";      // кто играет за X (you|opp); X всегда ходит первым
+  let board=Array(9).fill("");
+  let turn="X";         // чей ход
+  let over=false;
+  let humanMark="X";    // в режиме бота: за кого играет человек
+  let score={X:0,O:0,D:0};
+
+  const LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+  // ===== выбор =====
+  $("segMode").addEventListener("click",(e)=>{const b=e.target.closest("button");if(!b)return;
+    document.querySelectorAll("#segMode button").forEach(x=>x.classList.remove("on"));b.classList.add("on");MODE=b.dataset.m;
+    $("lvlRow").style.display=(MODE==="bot")?"block":"none";});
+  $("segLvl").addEventListener("click",(e)=>{const b=e.target.closest("button");if(!b)return;
+    document.querySelectorAll("#segLvl button").forEach(x=>x.classList.remove("on"));b.classList.add("on");LEVEL=b.dataset.l;});
+  $("segFirst").addEventListener("click",(e)=>{const b=e.target.closest("button");if(!b)return;
+    document.querySelectorAll("#segFirst button").forEach(x=>x.classList.remove("on"));b.classList.add("on");FIRST=b.dataset.f;});
+
+  $("goBtn").addEventListener("click",()=>{
+    score={X:0,O:0,D:0};
+    if(MODE==="bot"){ humanMark=(FIRST==="you")?"X":"O"; $("whoX").textContent=(humanMark==="X")?"Ты":"Бот"; $("whoO").textContent=(humanMark==="O")?"Ты":"Бот"; }
+    else{ $("whoX").textContent="Игрок 1"; $("whoO").textContent="Игрок 2"; }
+    $("setup").style.display="none";$("game").style.display="block";
+    newRound();
+  });
+
+  $("againBtn").addEventListener("click",()=>newRound());
+  $("menuBtn").addEventListener("click",()=>{$("game").style.display="none";$("setup").style.display="block";});
+
+  // ===== раунд =====
+  function newRound(){
+    board=Array(9).fill("");turn="X";over=false;
+    renderScore();drawBoard();updateStatus();
+    // если в режиме бота первый ход за ботом
+    if(MODE==="bot"&&turn!==humanMark){setTimeout(botMove,450);}
+  }
+
+  function drawBoard(){
+    const bd=$("board");bd.innerHTML="";
+    board.forEach((v,i)=>{
+      const c=document.createElement("div");
+      c.className="cell"+(v?(" "+v.toLowerCase()+" dis"):"");
+      if(v)c.innerHTML='<span class="mk">'+(v==="X"?"❌":"⭕")+'</span>';
+      c.onclick=()=>cellClick(i);
+      bd.appendChild(c);
+    });
+  }
+
+  function cellClick(i){
+    if(over||board[i])return;
+    if(MODE==="bot"&&turn!==humanMark)return; // не лезь за бота
+    place(i,turn);
+  }
+
+  function place(i,mark){
+    board[i]=mark;
+    const winLine=getWin(board);
+    drawBoard();
+    if(winLine){endRound(mark,winLine);return;}
+    if(board.every(v=>v)){endRound("D",null);return;}
+    turn=(turn==="X")?"O":"X";
+    updateStatus();
+    if(MODE==="bot"&&!over&&turn!==humanMark){setTimeout(botMove,450);}
+  }
+
+  function endRound(res,line){
+    over=true;
+    if(res==="D"){score.D++;$("status").className="status draw";$("status").textContent="🤝 Ничья!";}
+    else{
+      score[res]++;
+      const cls=res.toLowerCase();
+      $("status").className="status "+cls;
+      let who;
+      if(MODE==="bot")who=(res===humanMark)?"🏆 Ты выиграл!":"🤖 Бот выиграл";
+      else who=(res==="X")?"🏆 Игрок 1 (❌) выиграл!":"🏆 Игрок 2 (⭕) выиграл!";
+      $("status").textContent=who;
+      if(line)line.forEach(idx=>$("board").children[idx].classList.add("win"));
+    }
+    renderScore();
+  }
+
+  function updateStatus(){
+    if(over)return;
+    const cls=turn.toLowerCase();
+    $("status").className="status "+cls;
+    let txt;
+    if(MODE==="bot")txt=(turn===humanMark)?"Твой ход: "+(turn==="X"?"❌":"⭕"):"Ход бота...";
+    else txt="Ход: "+(turn==="X"?"❌ Игрок 1":"⭕ Игрок 2");
+    $("status").textContent=txt;
+    $("scX").classList.toggle("turn",turn==="X"&&!over);
+    $("scO").classList.toggle("turn",turn==="O"&&!over);
+  }
+
+  function renderScore(){$("vX").textContent=score.X;$("vO").textContent=score.O;$("vD").textContent=score.D;}
+
+  // ===== логика выигрыша =====
+  function getWin(b){for(const L of LINES){const [a,c,d]=L;if(b[a]&&b[a]===b[c]&&b[a]===b[d])return L;}return null;}
+  function winner(b){for(const L of LINES){const [a,c,d]=L;if(b[a]&&b[a]===b[c]&&b[a]===b[d])return b[a];}return null;}
+  function empties(b){const e=[];b.forEach((v,i)=>{if(!v)e.push(i);});return e;}
+
+  // ===== БОТ =====
+  function botMove(){
+    if(over)return;
+    const botMark=turn; // бот ходит сейчас
+    let move;
+    if(LEVEL==="easy"){
+      // случайный
+      const e=empties(board);move=e[Math.floor(Math.random()*e.length)];
+    } else if(LEVEL==="mid"){
+      // 60% умно, 40% случайно
+      move=(Math.random()<0.6)?bestMove(board,botMark):randMove();
+    } else {
+      // сложный — минимакс, непробиваемый
+      move=bestMove(board,botMark);
+    }
+    if(move==null){const e=empties(board);move=e[0];}
+    place(move,botMark);
+  }
+  function randMove(){const e=empties(board);return e[Math.floor(Math.random()*e.length)];}
+
+  // минимакс
+  function bestMove(b,mark){
+    const opp=(mark==="X")?"O":"X";
+    let bestScore=-Infinity,bestIdx=null;
+    for(const i of empties(b)){
+      b[i]=mark;
+      const s=minimax(b,false,mark,opp,0);
+      b[i]="";
+      if(s>bestScore){bestScore=s;bestIdx=i;}
+    }
+    return bestIdx;
+  }
+  function minimax(b,isMax,mark,opp,depth){
+    const w=winner(b);
+    if(w===mark)return 10-depth;
+    if(w===opp)return depth-10;
+    if(empties(b).length===0)return 0;
+    if(isMax){
+      let best=-Infinity;
+      for(const i of empties(b)){b[i]=mark;best=Math.max(best,minimax(b,false,mark,opp,depth+1));b[i]="";}
+      return best;
+    } else {
+      let best=Infinity;
+      for(const i of empties(b)){b[i]=opp;best=Math.min(best,minimax(b,true,mark,opp,depth+1));b[i]="";}
+      return best;
+    }
+  }
+</script>
+</body>
+</html>
