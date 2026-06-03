@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ДУРАК — Мир Настолок</title>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { overscroll-behavior:none; touch-action:manipulation; height:100%; }
+  body {
+    font-family:'Orbitron',sans-serif; color:#f3eee0; overflow:hidden;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 2px, transparent 2px 38px),
+      linear-gradient(160deg,#5a3d28,#3a2718 60%,#2a1c11);
+    height:100vh; user-select:none;
+  }
+  body.checking { visibility:hidden; }
+  #game, #setup { position:fixed; inset:0; }
+  /* ===== НАСТРОЙКИ ===== */
+  #setup { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px;
+    background:radial-gradient(circle at 50% 20%, #5a3d28, #2a1c11); }
+  #setup h1 { font-family:'Russo One'; font-size:46px; letter-spacing:4px; color:#fff;
+    text-shadow:0 0 14px #c0392b,0 0 30px #c0392b; }
+  #setup .sub { font-size:12px; letter-spacing:3px; color:#d8c4a0; margin:6px 0 30px; }
+  .ask { font-size:13px; letter-spacing:2px; color:#d8c4a0; margin-bottom:14px; }
+  .opts { display:flex; gap:12px; margin-bottom:30px; }
+  .opt {
+    width:64px; height:64px; border-radius:14px; border:2px solid rgba(255,255,255,.2);
+    background:rgba(0,0,0,.25); color:#fff; font-family:'Russo One'; font-size:26px; cursor:pointer; transition:.15s;
+  }
+  .opt.sel { border-color:#f1c40f; background:rgba(241,196,15,.18); box-shadow:0 0 16px rgba(241,196,15,.4); }
+  .startbtn {
+    font-family:'Russo One'; font-size:18px; letter-spacing:2px; padding:14px 44px; border:none; border-radius:12px;
+    background:#c0392b; color:#fff; cursor:pointer; box-shadow:0 0 18px rgba(192,57,43,.6); transition:.15s;
+  }
+  .startbtn:active { transform:scale(.96); }
+  /* ===== СТОЛ ===== */
+  .seat { position:absolute; text-align:center; }
+  .seat .name {
+    font-family:'Russo One'; font-size:13px; letter-spacing:1px; color:#fff;
+    background:rgba(0,0,0,.55); padding:4px 12px; border-radius:8px; display:inline-block; white-space:nowrap;
+  }
+  .seat.active .name { background:#c0392b; box-shadow:0 0 12px rgba(192,57,43,.8); }
+  .seat.defender .name { box-shadow:0 0 12px rgba(241,196,15,.8); border:1px solid #f1c40f; }
+  .backs { display:flex; justify-content:center; margin-top:4px; }
+  .back { width:26px; height:38px; border-radius:5px; margin-left:-16px;
+    background:repeating-linear-gradient(45deg,#7a1f1f 0 4px,#9c2a2a 4px 8px); border:1px solid #5a1414; box-shadow:0 1px 3px rgba(0,0,0,.5); }
+  .back:first-child { margin-left:0; }
+  .seatTop { top:8px; left:50%; transform:translateX(-50%); }
+  .seatLeft { left:6px; top:42%; }
+  .seatRight { right:6px; top:42%; }
+  /* колода + козырь */
+  #deckZone { position:absolute; top:14px; right:14px; display:flex; align-items:center; }
+  #trumpCard { position:relative; }
+  .deckPile { width:42px; height:60px; border-radius:6px;
+    background:repeating-linear-gradient(45deg,#7a1f1f 0 5px,#9c2a2a 5px 10px); border:1px solid #5a1414;
+    box-shadow:0 2px 5px rgba(0,0,0,.5); position:relative; z-index:2; }
+  .deckCount { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'Russo One';
+    font-size:15px; color:#fff; text-shadow:0 1px 2px #000; z-index:3; }
+  .trumpUnder { position:absolute; left:-30px; top:8px; transform:rotate(90deg); z-index:1; }
+  /* центр-стол */
+  #table { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    display:flex; flex-wrap:wrap; gap:6px; justify-content:center; align-items:center;
+    width:min(86vw,420px); min-height:120px; }
+  .pair { position:relative; width:54px; height:78px; }
+  .pair .atk { position:absolute; top:0; left:0; }
+  .pair .def { position:absolute; top:14px; left:12px; }
+  /* карты */
+  .card {
+    width:54px; height:78px; border-radius:7px; background:#fbf6e9; border:1px solid #c9bfa3;
+    box-shadow:0 2px 5px rgba(0,0,0,.45); position:relative; font-family:'Orbitron'; font-weight:700;
+    display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+  }
+  .card.sm { width:46px; height:66px; }
+  .card .corner { position:absolute; top:3px; left:5px; font-size:14px; line-height:1; }
+  .card .center { font-size:24px; }
+  .card .br { position:absolute; bottom:3px; right:5px; font-size:14px; transform:rotate(180deg); }
+  .card.red { color:#c0392b; } .card.black { color:#1c1c1c; }
+  .card.trumpc { box-shadow:0 0 10px #f1c40f,0 2px 5px rgba(0,0,0,.45); }
+  /* рука игрока */
+  #hand { position:absolute; bottom:62px; left:50%; transform:translateX(-50%);
+    display:flex; justify-content:center; max-width:98vw; }
+  #hand .card { margin-left:-22px; transition:transform .12s; }
+  #hand .card:first-child { margin-left:0; }
+  #hand .card.play { cursor:pointer; }
+  #hand .card.play:hover, #hand .card.sel { transform:translateY(-14px); box-shadow:0 0 12px #f1c40f,0 4px 8px rgba(0,0,0,.5); }
+  #hand .card.dim { opacity:.45; }
+  /* низ: статус + кнопки */
+  #bottom { position:absolute; bottom:10px; left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  #status { font-family:'Russo One'; font-size:14px; letter-spacing:1px; text-shadow:0 1px 3px #000; min-height:18px; text-align:center; }
+  #actions { display:flex; gap:10px; }
+  .actbtn {
+    font-family:'Russo One'; font-size:14px; letter-spacing:1px; padding:10px 22px; border:none; border-radius:10px;
+    color:#fff; cursor:pointer; transition:.15s; display:none;
+  }
+  .actbtn:active { transform:scale(.95); }
+  #btnTake { background:#c0392b; box-shadow:0 0 14px rgba(192,57,43,.6); }
+  #btnDone { background:#27ae60; box-shadow:0 0 14px rgba(39,174,96,.6); }
+  /* конец игры */
+  #over { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(20,12,6,.9); z-index:20; text-align:center; padding:24px; }
+  #over.show { display:flex; }
+  #over .big { font-family:'Russo One'; font-size:34px; color:#fff; text-shadow:0 0 16px #c0392b; }
+  #over .small { font-size:14px; color:#d8c4a0; margin:12px 0 20px; }
+  a.menu { position:absolute; top:10px; left:10px; color:#d8c4a0; font-size:11px; letter-spacing:1px;
+    text-decoration:none; background:rgba(0,0,0,.4); padding:6px 12px; border-radius:8px; z-index:5; }
+</style>
+</head>
+<body class="checking">
+
+<div id="setup">
+  <h1>ДУРАК</h1>
+  <div class="sub">ПОДКИДНОЙ • 36 КАРТ</div>
+  <div class="ask">СКОЛЬКО ИГРОКОВ?</div>
+  <div class="opts" id="opts">
+    <button class="opt sel" data-n="2">2</button>
+    <button class="opt" data-n="3">3</button>
+    <button class="opt" data-n="4">4</button>
+  </div>
+  <button class="startbtn" id="start">ИГРАТЬ С БОТАМИ</button>
+</div>
+
+<div id="game" style="display:none">
+  <a class="menu" href="index.html">← Меню</a>
+  <div id="deckZone">
+    <div id="trumpCard"></div>
+    <div class="deckPile"><div class="deckCount" id="deckCount">0</div></div>
+  </div>
+  <div id="seats"></div>
+  <div id="table"></div>
+  <div id="hand"></div>
+  <div id="bottom">
+    <div id="status"></div>
+    <div id="actions">
+      <button class="actbtn" id="btnDone">БИТО</button>
+      <button class="actbtn" id="btnTake">ВЗЯТЬ</button>
+    </div>
+  </div>
+</div>
+
+<div id="over">
+  <div class="big" id="overTitle"></div>
+  <div class="small" id="overText"></div>
+  <button class="startbtn" id="again">ЕЩЁ РАЗ</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://wifdphfkyfzgjrmrgvob.supabase.co';
+const SUPABASE_KEY='sb_publishable_gOFAG3-xjA8GqFL_uDX5kg_ngk8dZkC';
+const _db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+_db.auth.getSession().then(({data})=>{
+  if(!data.session){ window.location.replace('login.html'); }
+  else { document.body.classList.remove('checking'); }
+});
+</script>
+
+<script>
+const AC=window.AudioContext||window.webkitAudioContext;
+function snd(freq,dur,type,vol){ try{ const c=new AC(),o=c.createOscillator(),g=c.createGain();
+  o.type=type||'sine'; o.frequency.value=freq; g.gain.value=vol||0.08; o.connect(g); g.connect(c.destination);
+  o.start(); g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+dur); o.stop(c.currentTime+dur);
+  setTimeout(()=>c.close(),(dur+0.1)*1000);}catch(e){} }
+const sPlay=()=>snd(420,0.05,'triangle',0.07);
+const sTake=()=>{snd(240,0.06,'square',0.08);setTimeout(()=>snd(180,0.09,'square',0.07),50);};
+const sWin =()=>{[523,659,784,1046].forEach((f,i)=>setTimeout(()=>snd(f,0.18,'triangle',0.14),i*120));};
+
+// ===== КАРТЫ =====
+const RANKS=['6','7','8','9','10','В','Д','К','Т'];
+const SUITS=['♠','♥','♦','♣'];
+const isRed=s=>s===1||s===2;
+let deck, trump, trumpSuit, players, attacker, defender, table, phase, npl, gameOver, botBusy;
+
+function newDeck(){
+  const d=[];
+  for(let s=0;s<4;s++)for(let r=0;r<9;r++) d.push({r,s});
+  for(let i=d.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+  return d;
+}
+function beats(def,atk){
+  if(def.s===atk.s) return def.r>atk.r;
+  if(def.s===trumpSuit && atk.s!==trumpSuit) return true;
+  return false;
+}
+function activeCount(){ return players.filter(p=>p.hand.length>0||deck.length>0).length; }
+
+// ===== ИГРА =====
+function startGame(n){
+  npl=n; deck=newDeck();
+  trump=deck[deck.length-1]; trumpSuit=trump.s;
+  players=[];
+  const names=['Я','Платон','Сократ','Аристотель'];
+  for(let i=0;i<n;i++) players.push({name:i===0?'Я':names[i],hand:[],bot:i!==0,out:false});
+  for(let k=0;k<6;k++) for(let i=0;i<n;i++) players[i].hand.push(deck.shift());
+  players.forEach(p=>sortHand(p));
+  // первый ход — у кого младший козырь
+  let best=99, who=0;
+  players.forEach((p,i)=>{ p.hand.forEach(c=>{ if(c.s===trumpSuit && c.r<best){ best=c.r; who=i; } }); });
+  attacker=who; defender=nextActive(attacker);
+  table=[]; phase='attack'; gameOver=false; botBusy=false;
+  document.getElementById('setup').style.display='none';
+  document.getElementById('game').style.display='';
+  document.getElementById('over').classList.remove('show');
+  buildSeats();
+  render(); advance();
+}
+function sortHand(p){
+  p.hand.sort((a,b)=> (a.s===trumpSuit?1:0)-(b.s===trumpSuit?1:0) || a.s-b.s || a.r-b.r );
+}
+function nextActive(i){ let j=i; for(let k=0;k<npl;k++){ j=(j+1)%npl; if(!players[j].out) return j; } return i; }
+
+function boutLimit(){ return Math.min(6, players[defender]._startCount||6); }
+function tableRanks(){ const s=new Set(); table.forEach(t=>{ s.add(t.atk.r); if(t.def) s.add(t.def.r); }); return s; }
+function undef(){ return table.filter(t=>!t.def); }
+
+function coAttackers(){ return players.map((p,i)=>i).filter(i=>i!==defender && !players[i].out); }
+
+// ===== ХОД =====
+function advance(){
+  if(gameOver) return;
+  render();
+  if(phase==='attack'){
+    if(players[defender]._startCount===undefined) players[defender]._startCount=players[defender].hand.length;
+    if(players[attacker].bot){ botBusy=true; setTimeout(botOpen,650); }
+    else { setStatus('Твой ход — атакуй'); enableHuman(); }
+  } else if(phase==='defend'){
+    if(players[defender].bot){ botBusy=true; setTimeout(botDefend,750); }
+    else { setStatus('Защищайся или возьми'); enableHuman(); }
+  } else if(phase==='addon'){
+    // боты-соатакующие подкидывают по одному
+    const thrown = botTryThrow();
+    if(thrown){ phase='defend'; advance(); return; }
+    // ход за человеком, если он атакующий
+    if(coAttackers().includes(0) && undef().length===0){
+      setStatus('Можешь подкинуть или БИТО'); enableHuman();
+    } else {
+      resolveBeaten();
+    }
+  }
+}
+
+function botOpen(){
+  const p=players[attacker];
+  const c=p.hand.slice().sort((a,b)=>(a.s===trumpSuit?1:0)-(b.s===trumpSuit?1:0)||a.r-b.r)[0];
+  playAttack(attacker,c); sPlay();
+  phase='defend'; botBusy=false; advance();
+}
+function botDefend(){
+  const d=players[defender];
+  const target=undef()[0];
+  // ищем наименьшую бьющую
+  const opts=d.hand.filter(c=>beats(c,target.atk))
+    .sort((a,b)=>(a.s===trumpSuit?1:0)-(b.s===trumpSuit?1:0)||a.r-b.r);
+  if(opts.length && (opts[0].s!==trumpSuit || target.atk.s===trumpSuit || Math.random()<0.85)){
+    coverCard(defender,opts[0],target); sPlay();
+    botBusy=false;
+    if(undef().length===0){ phase='addon'; advance(); } else advance();
+  } else {
+    takeCards(); botBusy=false;
+  }
+}
+function botTryThrow(){
+  if(table.length>=boutLimit()) return false;
+  const ranks=tableRanks();
+  for(const i of coAttackers()){
+    if(!players[i].bot) continue;
+    const cand=players[i].hand.filter(c=>ranks.has(c.r) && c.s!==trumpSuit)
+      .sort((a,b)=>a.r-b.r);
+    if(cand.length && players[defender].hand.length>undef().length){
+      playAttack(i,cand[0]); sPlay(); return true;
+    }
+  }
+  return false;
+}
+
+function playAttack(pi,card){
+  const p=players[pi];
+  p.hand.splice(p.hand.findIndex(c=>c.r===card.r&&c.s===card.s),1);
+  table.push({atk:card,def:null,by:pi});
+}
+function coverCard(pi,card,pair){
+  const p=players[pi];
+  p.hand.splice(p.hand.findIndex(c=>c.r===card.r&&c.s===card.s),1);
+  pair.def=card;
+}
+
+function takeCards(){
+  const d=players[defender];
+  table.forEach(t=>{ d.hand.push(t.atk); if(t.def) d.hand.push(t.def); });
+  sortHand(d); sTake();
+  table=[]; players[defender]._startCount=undefined;
+  refill(attacker);
+  const newAtk=nextActive(defender);
+  endBout(newAtk);
+}
+function resolveBeaten(){
+  table=[]; players[defender]._startCount=undefined;
+  refill(attacker);
+  endBout(defender); // бито — защищавшийся атакует
+}
+function refill(firstIdx){
+  const order=[];
+  let i=firstIdx;
+  for(let k=0;k<npl;k++){ if(!players[i].out && i!==defender) order.push(i); i=(i+1)%npl; }
+  if(!players[defender].out) order.push(defender);
+  for(const idx of order){
+    while(players[idx].hand.length<6 && deck.length>0) players[idx].hand.push(deck.shift());
+    sortHand(players[idx]);
+  }
+}
+function endBout(newAttacker){
+  // выбывшие
+  players.forEach(p=>{ if(!p.out && p.hand.length===0 && deck.length===0) p.out=true; });
+  if(checkOver()) return;
+  attacker=players[newAttacker].out?nextActive(newAttacker):newAttacker;
+  defender=nextActive(attacker);
+  phase='attack';
+  advance();
+}
+function checkOver(){
+  const left=players.filter(p=>!p.out);
+  if(left.length<=1){
+    gameOver=true;
+    render();
+    const loser=left[0];
+    const ov=document.getElementById('over');
+    if(loser && loser.name==='Я'){ document.getElementById('overTitle').textContent='😢 ТЫ ДУРАК'; document.getElementById('overText').textContent='В этот раз не повезло. Ещё разок?'; }
+    else if(loser){ document.getElementById('overTitle').textContent='🏆 ПОБЕДА!'; document.getElementById('overText').textContent='Дурак — '+loser.name+'. Молодец!'; sWin(); }
+    else { document.getElementById('overTitle').textContent='🤝 НИЧЬЯ'; document.getElementById('overText').textContent=''; }
+    ov.classList.add('show');
+    return true;
+  }
+  return false;
+}
+
+// ===== ДЕЙСТВИЯ ЧЕЛОВЕКА =====
+function humanCard(card){
+  if(gameOver||botBusy) return;
+  if(phase==='attack' && attacker===0){
+    playAttack(0,card); sPlay(); phase='defend'; advance();
+  } else if(phase==='defend' && defender===0){
+    const target=undef()[0];
+    if(target && beats(card,target.atk)){
+      coverCard(0,card,target); sPlay();
+      if(undef().length===0){ phase='addon'; advance(); } else advance();
+    }
+  } else if(phase==='addon' && coAttackers().includes(0)){
+    if(table.length<boutLimit() && tableRanks().has(card.r) && players[defender].hand.length>undef().length){
+      playAttack(0,card); sPlay(); phase='defend'; advance();
+    }
+  }
+}
+document.getElementById('btnTake').onclick=()=>{ if(phase==='defend'&&defender===0&&!botBusy) takeCards(); };
+document.getElementById('btnDone').onclick=()=>{ if(phase==='addon'&&coAttackers().includes(0)&&!botBusy){ if(!botTryThrow()) resolveBeaten(); else { phase='defend'; advance(); } } };
+
+function enableHuman(){ render(); }
+
+// ===== ОТРИСОВКА =====
+function cardEl(card,extra){
+  const el=document.createElement('div');
+  el.className='card '+(isRed(card.s)?'red':'black')+(extra||'');
+  if(card.s===trumpSuit) el.classList.add('trumpc');
+  el.innerHTML='<div class="corner">'+RANKS[card.r]+'<br>'+SUITS[card.s]+'</div>'+
+    '<div class="center">'+SUITS[card.s]+'</div>'+
+    '<div class="br">'+RANKS[card.r]+'<br>'+SUITS[card.s]+'</div>';
+  return el;
+}
+function buildSeats(){
+  const seats=document.getElementById('seats'); seats.innerHTML='';
+  const posClass=(()=>{
+    if(npl===2) return {1:'seatTop'};
+    if(npl===3) return {1:'seatLeft',2:'seatRight'};
+    return {1:'seatLeft',2:'seatTop',3:'seatRight'};
+  })();
+  for(let i=1;i<npl;i++){
+    const s=document.createElement('div');
+    s.className='seat '+posClass[i]; s.id='seat'+i;
+    s.innerHTML='<div class="name">'+players[i].name+'</div><div class="backs"></div>';
+    seats.appendChild(s);
+  }
+}
+function render(){
+  // колода
+  document.getElementById('deckCount').textContent=deck.length;
+  const tc=document.getElementById('trumpCard'); tc.innerHTML='';
+  if(deck.length>0){ const t=cardEl(trump,' trumpUnder'); tc.appendChild(t); }
+  else { tc.innerHTML='<div style="font-size:24px;color:#f1c40f">'+SUITS[trumpSuit]+'</div>'; }
+  // боты
+  for(let i=1;i<npl;i++){
+    const s=document.getElementById('seat'+i); if(!s) continue;
+    s.classList.toggle('active', i===attacker && !gameOver);
+    s.classList.toggle('defender', i===defender && !gameOver);
+    const b=s.querySelector('.backs'); b.innerHTML='';
+    const cnt=players[i].out?0:players[i].hand.length;
+    for(let k=0;k<Math.min(cnt,8);k++){ const d=document.createElement('div'); d.className='back'; b.appendChild(d); }
+    s.querySelector('.name').textContent=players[i].name+(players[i].out?' ✓':' ('+cnt+')');
+  }
+  // стол
+  const t=document.getElementById('table'); t.innerHTML='';
+  table.forEach(pair=>{
+    const w=document.createElement('div'); w.className='pair';
+    const a=cardEl(pair.atk); a.classList.add('atk'); w.appendChild(a);
+    if(pair.def){ const d=cardEl(pair.def); d.classList.add('def'); w.appendChild(d); }
+    t.appendChild(w);
+  });
+  // рука
+  const h=document.getElementById('hand'); h.innerHTML='';
+  const me=players[0];
+  let playable=new Set();
+  if(!gameOver && !botBusy){
+    if(phase==='attack'&&attacker===0) me.hand.forEach((c,idx)=>playable.add(idx));
+    else if(phase==='defend'&&defender===0){ const tg=undef()[0]; me.hand.forEach((c,idx)=>{ if(tg&&beats(c,tg.atk)) playable.add(idx); }); }
+    else if(phase==='addon'&&coAttackers().includes(0)){ const rk=tableRanks(); me.hand.forEach((c,idx)=>{ if(table.length<boutLimit()&&rk.has(c.r)&&players[defender].hand.length>undef().length) playable.add(idx); }); }
+  }
+  me.hand.forEach((c,idx)=>{
+    const el=cardEl(c, playable.has(idx)?' play':' dim');
+    el.onclick=()=>humanCard(c);
+    h.appendChild(el);
+  });
+  // кнопки
+  const bt=document.getElementById('btnTake'), bd=document.getElementById('btnDone');
+  bt.style.display=(!gameOver&&phase==='defend'&&defender===0&&!botBusy)?'block':'none';
+  bd.style.display=(!gameOver&&phase==='addon'&&coAttackers().includes(0)&&!botBusy)?'block':'none';
+}
+function setStatus(s){ document.getElementById('status').textContent=s; }
+
+// ===== НАСТРОЙКИ =====
+let chosen=2;
+document.querySelectorAll('.opt').forEach(b=>{
+  b.onclick=()=>{ document.querySelectorAll('.opt').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); chosen=+b.dataset.n; };
+});
+document.getElementById('start').onclick=()=>startGame(chosen);
+document.getElementById('again').onclick=()=>{ document.getElementById('over').classList.remove('show'); document.getElementById('game').style.display='none'; document.getElementById('setup').style.display='flex'; };
+</script>
+</body>
+</html>
