@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>2048 — Мир Настолок</title>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { overscroll-behavior:none; touch-action:none; }
+  body {
+    font-family:'Orbitron',sans-serif;
+    background:radial-gradient(circle at 50% -5%, #2a1d52 0%, #120a26 60%, #0a0612 100%);
+    color:#ece6ff; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:16px 14px 26px; user-select:none;
+  }
+  .app { width:100%; max-width:420px; display:flex; flex-direction:column; align-items:center; }
+  body.checking { visibility:hidden; }
+  .top { width:100%; display:flex; align-items:center; justify-content:center; position:relative; }
+  h1 {
+    font-family:'Russo One',sans-serif; font-size:40px; letter-spacing:2px; color:#fff;
+    text-shadow:0 0 14px #8e44ad,0 0 28px #6c5ce7;
+  }
+  #music.btn { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18);
+    color:#b3a4e0; box-shadow:none; }
+  #music.btn.on { background:#6c5ce7; color:#fff; box-shadow:0 0 16px rgba(108,92,231,.6); }
+  .sub { font-size:11px; letter-spacing:3px; color:#b3a4e0; margin:4px 0 14px; }
+  .recordbox {
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14);
+    border-radius:12px; padding:9px 26px; text-align:center; margin-bottom:12px; min-width:170px;
+  }
+  .recordbox .lbl { font-size:10px; letter-spacing:3px; color:#b3a4e0; }
+  .recordbox .val { font-family:'Russo One'; font-size:30px; color:#ffd23f; margin-top:2px;
+    text-shadow:0 0 12px rgba(255,210,63,.5); }
+  #board {
+    position:relative; width:100%; aspect-ratio:1/1;
+    background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.12);
+    border-radius:14px; padding:var(--pad);
+  }
+  .grid { position:absolute; inset:var(--pad); display:grid;
+    grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr); gap:var(--gap); }
+  .bg-cell { background:rgba(255,255,255,.05); border-radius:9px; }
+  .tiles { position:absolute; inset:var(--pad); }
+  .tile {
+    position:absolute; top:0; left:0;
+    display:flex; align-items:center; justify-content:center; border-radius:9px;
+    font-family:'Russo One'; font-weight:700; color:#776e65;
+    transition:transform .13s ease; will-change:transform;
+  }
+  .tile.new { animation:appear .14s ease; }
+  .tile.merged { animation:bump .16s ease; }
+  @keyframes appear { 0%{opacity:0;} 50%{opacity:1;transform:translate(var(--x),var(--y)) scale(.5);} 100%{transform:translate(var(--x),var(--y)) scale(1);} }
+  @keyframes bump { 0%{} 40%{transform:translate(var(--x),var(--y)) scale(1.18);} 100%{transform:translate(var(--x),var(--y)) scale(1);} }
+  .t2{background:#eee4da;} .t4{background:#ede0c8;}
+  .t8{background:#f2b179;color:#fff;} .t16{background:#f59563;color:#fff;}
+  .t32{background:#f67c5f;color:#fff;} .t64{background:#f65e3b;color:#fff;}
+  .t128{background:#edcf72;color:#fff;} .t256{background:#edcc61;color:#fff;}
+  .t512{background:#edc850;color:#fff;} .t1024{background:#edc53f;color:#fff;}
+  .t2048{background:#edc22e;color:#fff;box-shadow:0 0 18px #edc22e;}
+  .tsuper{background:#3c3a32;color:#fff;}
+  .btn {
+    font-family:'Russo One'; font-size:15px; letter-spacing:1px; margin-top:16px;
+    padding:12px 30px; border:none; border-radius:12px; cursor:pointer;
+    background:#6c5ce7; color:#fff; box-shadow:0 0 16px rgba(108,92,231,.6); transition:.15s;
+  }
+  .btn:active { transform:scale(.96); }
+  .hint { font-size:11px; color:#8a7fb0; margin-top:12px; text-align:center; letter-spacing:1px; }
+  .overlay {
+    position:absolute; inset:0; border-radius:14px; display:none;
+    flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(18,10,38,.88); z-index:5; text-align:center; padding:20px;
+  }
+  .overlay.show { display:flex; }
+  .overlay .big { font-family:'Russo One'; font-size:30px; color:#fff; text-shadow:0 0 14px #6c5ce7; }
+  .overlay .small { font-size:14px; color:#b3a4e0; margin:10px 0 18px; }
+  a.menu { margin-top:14px; color:#8a7fb0; font-size:12px; letter-spacing:2px; text-decoration:none; }
+  a.menu:hover { color:#fff; }
+</style>
+</head>
+<body class="checking">
+ <div class="app">
+  <div class="top">
+    <h1>2048</h1>
+  </div>
+  <div class="sub">СОБЕРИ ПЛИТКУ 2048</div>
+
+  <div class="recordbox"><div class="lbl">РЕКОРД</div><div class="val" id="record">0</div></div>
+
+  <div id="board" style="--pad:10px;--gap:10px;">
+    <div class="grid" id="grid"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="overlay" id="overlay">
+      <div class="big" id="ovTitle"></div>
+      <div class="small" id="ovText"></div>
+      <button class="btn" id="ovBtn">ЗАНОВО</button>
+    </div>
+  </div>
+
+  <button class="btn" id="music">🎵 ВКЛ. МУЗЫКУ</button>
+  <button class="btn" id="restart">🔄 НОВАЯ ИГРА</button>
+  <div class="hint">📱 Свайпай пальцем • 💻 стрелки</div>
+  <a class="menu" href="index.html">← В меню</a>
+ </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ===== ПРОВЕРКА ВХОДА =====
+const SUPABASE_URL = 'https://wifdphfkyfzgjrmrgvob.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_gOFAG3-xjA8GqFL_uDX5kg_ngk8dZkC';
+const _db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+_db.auth.getSession().then(({data})=>{
+  if(!data.session){ window.location.replace('login.html'); }
+  else { document.body.classList.remove('checking'); }
+});
+</script>
+<script>
+const AC = window.AudioContext||window.webkitAudioContext;
+// ===== ЗВУК СОБЫТИЙ (победа/конец) =====
+function tone(freq,dur,type,vol){
+  try{
+    const ctx=new AC();
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type=type||'sine'; o.frequency.value=freq; g.gain.value=vol||0.12;
+    o.connect(g); g.connect(ctx.destination); o.start();
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);
+    o.stop(ctx.currentTime+dur);
+    setTimeout(()=>ctx.close(),(dur+0.1)*1000);
+  }catch(e){}
+}
+const sWin =()=>{[523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,0.18,'triangle',0.18),i*120));};
+const sLose=()=>{[440,330,247,196].forEach((f,i)=>setTimeout(()=>tone(f,0.22,'sawtooth',0.15),i*140));};
+
+// ===== ЧИЛЛ-МУЗЫКА (lo-fi свист) =====
+function whistle(freq,dur,vol){
+  try{
+    const ctx=new AC();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    const v=ctx.createOscillator(), vg=ctx.createGain();
+    o.type='sine'; o.frequency.value=freq;
+    v.type='sine'; v.frequency.value=5.5; vg.gain.value=freq*0.012;
+    v.connect(vg); vg.connect(o.frequency); v.start();
+    g.gain.setValueAtTime(0.0001,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(vol,ctx.currentTime+0.09);
+    g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+dur);
+    o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+dur);
+    v.stop(ctx.currentTime+dur);
+    setTimeout(()=>ctx.close(),(dur+0.1)*1000);
+  }catch(e){}
+}
+function kick(){
+  try{
+    const ctx=new AC();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(95,ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(45,ctx.currentTime+0.14);
+    g.gain.setValueAtTime(0.16,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.18);
+    o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+0.2);
+    setTimeout(()=>ctx.close(),320);
+  }catch(e){}
+}
+function hat(){
+  try{
+    const ctx=new AC();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='square'; o.frequency.value=8000;
+    g.gain.setValueAtTime(0.03,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.04);
+    o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+0.05);
+    setTimeout(()=>ctx.close(),160);
+  }catch(e){}
+}
+const C4=261.63,D4=293.66,E4=329.63,G4=392.0,A4=440.0,C5=523.25,D5=587.33,E5=659.25,_=0;
+const melody=[E4,_,G4,_,A4,_,G4,_, C5,_,A4,_,G4,_,E4,_,  D4,_,E4,_,G4,_,A4,_, C5,_,D5,_,C5,_,A4,_];
+const bassHit=[0,8,16,24], hatHit=[4,12,20,28];
+let musicOn=false, mTimer=null, mStep=0;
+const STEP_MS=235;
+function musicTick(){
+  const s=mStep%32, n=melody[s];
+  if(n) whistle(n,0.5,0.075);
+  if(bassHit.includes(s)) kick();
+  if(hatHit.includes(s)) hat();
+  mStep++;
+}
+const musicBtn=document.getElementById('music');
+function toggleMusic(){
+  musicOn=!musicOn; musicBtn.classList.toggle('on',musicOn);
+  musicBtn.textContent = musicOn ? '🔇 ВЫКЛ. МУЗЫКУ' : '🎵 ВКЛ. МУЗЫКУ';
+  if(musicOn){ mStep=0; musicTick(); mTimer=setInterval(musicTick,STEP_MS); }
+  else { clearInterval(mTimer); mTimer=null; }
+}
+musicBtn.onclick=toggleMusic;
+
+// ===== СОСТОЯНИЕ =====
+const N=4;
+let cells, dead=false, tileId=0, record=0;
+let CELL=80, GAP=10;
+const elMap=new Map();
+
+function loadRecord(){ try{ record=parseInt(localStorage.getItem('record2048')||'0')||0; }catch(e){ record=0; } }
+function saveRecord(){ try{ localStorage.setItem('record2048',String(record)); }catch(e){} }
+const recordEl=document.getElementById('record');
+function updateRecord(){
+  let mx=0;
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){ const t=cells[r][c]; if(t&&t.val>mx) mx=t.val; }
+  if(mx>record){ record=mx; saveRecord(); }
+  recordEl.textContent=record;
+}
+
+const boardEl=document.getElementById('board');
+const tilesEl=document.getElementById('tiles');
+function layout(){
+  const inner=tilesEl.getBoundingClientRect();
+  GAP=Math.max(8, Math.round(inner.width*0.028));
+  boardEl.style.setProperty('--gap',GAP+'px');
+  CELL=(inner.width-3*GAP)/4;
+  for(const [id,el] of elMap){ const t=el._tile; if(t){ place(el,t.r,t.c,true); styleTile(el,t.val); } }
+}
+window.addEventListener('resize',layout);
+
+function pos(i){ return i*(CELL+GAP); }
+function place(el,r,c,instant){
+  el.style.setProperty('--x',pos(c)+'px');
+  el.style.setProperty('--y',pos(r)+'px');
+  if(instant){ const old=el.style.transition; el.style.transition='none'; el.style.transform=`translate(${pos(c)}px,${pos(r)}px)`; el.getBoundingClientRect(); el.style.transition=old; }
+  else el.style.transform=`translate(${pos(c)}px,${pos(r)}px)`;
+}
+function styleTile(el,val){
+  el.style.width=CELL+'px'; el.style.height=CELL+'px';
+  el.style.fontSize=(val>=1024?CELL*0.30:CELL*0.42)+'px';
+  el.className='tile '+(val<=2048?('t'+val):'tsuper');
+  el.textContent=val;
+}
+function makeEl(t){
+  const el=document.createElement('div');
+  el.className='tile'; el._tile=t;
+  tilesEl.appendChild(el);
+  styleTile(el,t.val); place(el,t.r,t.c,true);
+  return el;
+}
+
+function empties(){ const a=[]; for(let r=0;r<N;r++)for(let c=0;c<N;c++) if(!cells[r][c]) a.push([r,c]); return a; }
+function spawn(){
+  const e=empties(); if(!e.length)return null;
+  const [r,c]=e[Math.floor(Math.random()*e.length)];
+  const t={id:++tileId,r,c,val:Math.random()<0.9?2:4,isNew:true};
+  cells[r][c]=t; return t;
+}
+function traversal(dir){
+  const rows=[0,1,2,3], cols=[0,1,2,3], order=[];
+  const rs=dir==='down'?rows.slice().reverse():rows;
+  const cs=dir==='right'?cols.slice().reverse():cols;
+  for(const r of rs) for(const c of cs) order.push([r,c]);
+  return order;
+}
+function move(dir){
+  if(dead) return;
+  const vec={left:[0,-1],right:[0,1],up:[-1,0],down:[1,0]}[dir];
+  let moved=false, won=false;
+  const removeList=[];
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){ const t=cells[r][c]; if(t){ t.merged=false; t.justMerged=false; } }
+  for(const [r,c] of traversal(dir)){
+    const t=cells[r][c]; if(!t) continue;
+    let nr=r, nc=c, mergedInto=null;
+    while(true){
+      const tr=nr+vec[0], tc=nc+vec[1];
+      if(tr<0||tr>=N||tc<0||tc>=N) break;
+      const occ=cells[tr][tc];
+      if(!occ){ nr=tr; nc=tc; continue; }
+      if(occ.val===t.val && !occ.merged){ mergedInto=occ; nr=tr; nc=tc; }
+      break;
+    }
+    if(mergedInto){
+      cells[r][c]=null;
+      mergedInto.val*=2; mergedInto.merged=true; mergedInto.justMerged=true;
+      if(mergedInto.val>=2048) won=true;
+      t.r=nr; t.c=nc; removeList.push(t); moved=true;
+    } else if(nr!==r||nc!==c){
+      cells[r][c]=null; cells[nr][nc]=t; t.r=nr; t.c=nc; moved=true;
+    }
+  }
+  if(!moved) return;
+  spawn();
+  render(removeList);
+  if(won){ banner('🎉 2048!','Ты собрал плитку 2048! Можешь играть дальше.','ПРОДОЛЖИТЬ',()=>overlay.classList.remove('show')); sWin(); return; }
+  if(isDead()){ dead=true; banner('😢 КОНЕЦ','Ходов больше нет. Твой рекорд: '+record,'ЗАНОВО',newGame); sLose(); }
+}
+function isDead(){
+  if(empties().length) return false;
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const v=cells[r][c].val;
+    if(c<N-1 && cells[r][c+1].val===v) return false;
+    if(r<N-1 && cells[r+1][c].val===v) return false;
+  }
+  return true;
+}
+
+const overlay=document.getElementById('overlay');
+function render(removeList){
+  removeList=removeList||[];
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const t=cells[r][c]; if(!t) continue;
+    let el=elMap.get(t.id);
+    if(!el){ el=makeEl(t); elMap.set(t.id,el); if(t.isNew){ el.classList.add('new'); t.isNew=false; } }
+    el._tile=t; styleTile(el,t.val); place(el,t.r,t.c);
+    if(t.justMerged){ el.classList.remove('merged'); void el.offsetWidth; el.classList.add('merged'); t.justMerged=false; }
+  }
+  for(const t of removeList){
+    const el=elMap.get(t.id);
+    if(el){ elMap.delete(t.id); place(el,t.r,t.c); setTimeout(()=>el.remove(),150); }
+  }
+  updateRecord();
+}
+function buildBg(){
+  const g=document.getElementById('grid'); g.innerHTML='';
+  for(let i=0;i<N*N;i++){ const d=document.createElement('div'); d.className='bg-cell'; g.appendChild(d); }
+}
+function banner(title,text,btn,cb){
+  document.getElementById('ovTitle').textContent=title;
+  document.getElementById('ovText').textContent=text;
+  const b=document.getElementById('ovBtn'); b.textContent=btn; b.onclick=cb;
+  overlay.classList.add('show');
+}
+function newGame(){
+  cells=Array.from({length:N},()=>Array(N).fill(null));
+  dead=false;
+  elMap.forEach(el=>el.remove()); elMap.clear();
+  overlay.classList.remove('show');
+  layout(); spawn(); spawn(); render();
+}
+
+document.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(['arrowleft','a'].includes(k)){ e.preventDefault(); move('left'); }
+  else if(['arrowright','d'].includes(k)){ e.preventDefault(); move('right'); }
+  else if(['arrowup','w'].includes(k)){ e.preventDefault(); move('up'); }
+  else if(['arrowdown','s'].includes(k)){ e.preventDefault(); move('down'); }
+});
+let tsx=0,tsy=0;
+boardEl.addEventListener('touchstart',e=>{ const t=e.touches[0]; tsx=t.clientX; tsy=t.clientY; },{passive:true});
+boardEl.addEventListener('touchend',e=>{
+  const t=e.changedTouches[0];
+  const dx=t.clientX-tsx, dy=t.clientY-tsy;
+  if(Math.abs(dx)<24 && Math.abs(dy)<24) return;
+  if(Math.abs(dx)>Math.abs(dy)) move(dx>0?'right':'left'); else move(dy>0?'down':'up');
+},{passive:true});
+
+document.getElementById('restart').onclick=newGame;
+
+loadRecord(); recordEl.textContent=record; buildBg();
+requestAnimationFrame(()=>{ layout(); newGame(); });
+</script>
+</body>
+</html>
