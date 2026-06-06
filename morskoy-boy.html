@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Морской бой — МИР НАСТОЛОК</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg1:#0b1c3a; --bg2:#0a2f4a; --bg3:#061226;
+    --sea:#0e4d6b; --sea2:#0a3a52; --gold:#ffd60a; --green:#52ff8f; --red:#ff5c7a; --aqua:#46e0d0;
+    --ink:#eaf4ff; --muted:#8fb6cf;
+    --card:rgba(70,224,208,.08); --line:rgba(70,224,208,.30);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{font-family:'Orbitron',sans-serif;color:var(--ink);
+    background:radial-gradient(900px 600px at 50% -10%, rgba(70,224,208,.20), transparent 60%),linear-gradient(160deg,var(--bg1),var(--bg3) 55%,var(--bg2));
+    background-attachment:fixed;min-height:100vh;display:flex;justify-content:center;padding:16px 12px 40px;overflow-x:hidden;}
+  .wrap{width:100%;max-width:420px;display:flex;flex-direction:column;gap:16px;}
+  .ico{display:block;text-align:center;font-size:40px;}
+  .title{text-align:center;font-family:'Russo One',sans-serif;font-size:clamp(24px,7vw,30px);letter-spacing:1px;
+    background:linear-gradient(180deg,#fff,var(--aqua));-webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 24px rgba(70,224,208,.35);margin-top:-2px;}
+  .sub{text-align:center;color:var(--muted);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:-6px;}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px 16px;backdrop-filter:blur(10px);box-shadow:0 18px 50px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);}
+  .label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:14px 0 8px;display:block;}
+  .label:first-of-type{margin-top:0;}
+  .seg{display:flex;gap:8px;}
+  .seg button{flex:1;padding:13px 4px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:13px;font-family:'Russo One',sans-serif;font-size:14px;cursor:pointer;transition:.18s;}
+  .seg button.on{background:linear-gradient(180deg,var(--sea),var(--sea2));border-color:var(--aqua);box-shadow:0 0 18px rgba(70,224,208,.4);}
+  .btn{width:100%;padding:15px;border:none;border-radius:15px;cursor:pointer;font-family:'Russo One',sans-serif;font-size:16px;letter-spacing:.5px;transition:.18s;margin-top:14px;}
+  .btn:active{transform:scale(.97);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-main{background:linear-gradient(135deg,var(--aqua),#1f8f9c);color:#03222a;box-shadow:0 10px 26px rgba(70,224,208,.4);}
+  .btn-ghost{background:transparent;color:var(--aqua);border:1px solid var(--line);}
+  .btn-red{background:linear-gradient(135deg,#ff7a93,#c1123d);color:#fff;box-shadow:0 10px 26px rgba(193,18,61,.45);}
+  .status{text-align:center;font-family:'Russo One',sans-serif;font-size:16px;min-height:22px;margin-bottom:12px;letter-spacing:.5px;}
+  .status.you{color:var(--aqua);}.status.bot{color:var(--red);}.status.win{color:var(--gold);}
+  .boardwrap{margin-bottom:10px;}
+  .boardlabel{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;}
+  .board{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;aspect-ratio:1/1;background:rgba(0,0,0,.25);padding:3px;border-radius:10px;border:1px solid var(--line);}
+  .cell{background:linear-gradient(160deg,rgba(70,224,208,.10),rgba(70,224,208,.02));border-radius:3px;display:grid;place-items:center;font-size:clamp(9px,3vw,15px);cursor:pointer;transition:.1s;user-select:none;}
+  .board.enemy .cell:active{transform:scale(.9);}
+  .cell.ship{background:linear-gradient(160deg,#6f8aa8,#46627e);}
+  .cell.miss{background:rgba(255,255,255,.06);color:var(--muted);cursor:default;}
+  .cell.miss::after{content:"·";font-size:18px;}
+  .cell.hit{background:linear-gradient(160deg,#ff7a93,#c1123d);color:#fff;cursor:default;}
+  .cell.sunk{background:linear-gradient(160deg,#7a0f28,#4a0a18);color:#fff;cursor:default;}
+  .cell.preview{background:rgba(70,224,208,.4)!important;}
+  .cell.bad{background:rgba(255,92,122,.5)!important;}
+  .place-tools{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+  .fleetq{display:flex;gap:5px;flex-wrap:wrap;flex:1;}
+  .ship-pill{padding:6px 9px;border:1px solid var(--line);border-radius:9px;font-size:12px;color:var(--muted);background:rgba(0,0,0,.2);}
+  .ship-pill.cur{border-color:var(--aqua);color:var(--aqua);box-shadow:0 0 12px rgba(70,224,208,.35);}
+  .ship-pill.done{opacity:.35;text-decoration:line-through;}
+  .mini{padding:10px 12px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:11px;font-family:'Russo One',sans-serif;font-size:13px;cursor:pointer;}
+  .mini:active{transform:scale(.95);}
+  .row2{display:flex;gap:8px;}
+  .row2 .btn{flex:1;}
+  .gbtns{display:flex;gap:10px;margin-top:14px;}
+  .gbtns .btn{margin-top:0;}
+  .code-box{text-align:center;background:rgba(0,0,0,.3);border:1px dashed var(--aqua);border-radius:16px;padding:14px;margin-bottom:14px;}
+  .code-box .lbl{font-size:11px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;}
+  .code-box .val{font-family:'Russo One',sans-serif;font-size:34px;letter-spacing:8px;margin:4px 0;color:var(--gold);}
+  .copy{font-size:12px;color:var(--aqua);cursor:pointer;text-decoration:underline;}
+  .players{display:flex;flex-direction:column;gap:10px;margin:8px 0 14px;}
+  .pl{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:13px;background:rgba(70,224,208,.10);border:1px solid var(--line);}
+  .pl .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:16px;background:linear-gradient(135deg,var(--sea),var(--sea2));}
+  .pl .nm{font-family:'Russo One',sans-serif;font-size:15px;}
+  .pl .me{margin-left:auto;font-size:10px;color:var(--gold);border:1px solid var(--gold);border-radius:8px;padding:3px 7px;}
+  .slot{padding:12px 14px;border-radius:13px;border:1px dashed var(--line);color:var(--muted);font-size:13px;text-align:center;}
+  input.code-in{width:100%;padding:15px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.3);color:var(--ink);text-align:center;font-family:'Orbitron',sans-serif;font-weight:700;font-size:22px;letter-spacing:7px;margin-bottom:10px;outline:none;}
+  input.code-in:focus{border-color:var(--aqua);}
+  input.code-in::placeholder{color:var(--muted);opacity:.5;}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(40px);background:var(--sea);color:#fff;padding:12px 22px;border-radius:30px;font-size:13px;opacity:0;transition:.3s;pointer-events:none;z-index:50;box-shadow:0 12px 30px rgba(0,0,0,.5);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .note{text-align:center;font-size:11px;color:var(--muted);line-height:1.6;margin-top:8px;}
+  .sndbtn{position:fixed;top:14px;right:14px;z-index:60;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:rgba(10,47,74,.85);color:var(--aqua);font-size:18px;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 6px 18px rgba(0,0,0,.4);}
+  .sndbtn:active{transform:scale(.92);}
+  .end{text-align:center;padding:6px 0;}
+  .end .em{font-size:46px;}
+  .end .ttl{font-family:'Russo One',sans-serif;font-size:22px;margin:6px 0;}
+  .end .ttl.win{color:var(--gold);}.end .ttl.lose{color:var(--red);}
+  #lobby,#place,#game,#netwait{display:none;}
+  .big-wait{text-align:center;font-family:'Russo One',sans-serif;font-size:18px;color:var(--aqua);padding:18px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <span class="ico">🚢</span>
+    <div class="title">МОРСКОЙ БОЙ</div>
+    <div class="sub">МИР НАСТОЛОК</div>
+  </div>
+
+  <!-- ВЫБОР -->
+  <div class="panel" id="setup">
+    <span class="label">Режим</span>
+    <div class="seg" id="segMode"><button data-m="bot" class="on">🤖 С ботом</button><button data-m="net">🌐 По сети</button><button data-m="rnd">🎲 Рандом</button></div>
+    <button class="btn btn-main" id="goBtn">⚓ РАССТАВИТЬ ФЛОТ</button>
+    <div id="joinBlock" style="display:none;">
+      <div class="note">— ИЛИ —</div>
+      <span class="label">Ввести код друга</span>
+      <input class="code-in" id="codeInput" inputmode="numeric" maxlength="7" placeholder="0000000">
+      <button class="btn btn-ghost" id="joinBtn" style="margin-top:6px;">⌨️ ВОЙТИ ПО КОДУ</button>
+    </div>
+    <div class="status" id="setupStatus"></div>
+  </div>
+
+  <!-- ЛОББИ (сеть) -->
+  <div class="panel" id="lobby">
+    <div class="code-box"><div class="lbl">код боя</div><div class="val" id="lobbyCode">—</div><span class="copy" id="copyCode">📋 скопировать код</span></div>
+    <span class="label">Игроки</span><div class="players" id="players"></div>
+    <div class="status" id="lobbyStatus"></div>
+    <button class="btn btn-red" id="leaveBtn">🚪 ВЫЙТИ</button>
+  </div>
+
+  <!-- РАССТАНОВКА -->
+  <div class="panel" id="place">
+    <div class="status you" id="placeStatus">Расставь свой флот</div>
+    <div class="place-tools">
+      <div class="fleetq" id="fleetq"></div>
+      <button class="mini" id="rotateBtn">🔄 ↔️</button>
+    </div>
+    <div class="boardwrap"><div class="board" id="placeBoard"></div></div>
+    <div class="row2">
+      <button class="btn btn-ghost" id="randBtn" style="margin-top:0;">🎲 Случайно</button>
+      <button class="btn btn-ghost" id="clearBtn" style="margin-top:0;">🗑 Очистить</button>
+    </div>
+    <button class="btn btn-main" id="fightBtn" disabled>🔥 В БОЙ!</button>
+    <div class="note">Выбери ориентацию 🔄 и тапни клетку. Корабли не должны касаться.</div>
+  </div>
+
+  <!-- ОЖИДАНИЕ СОПЕРНИКА (сеть) -->
+  <div class="panel" id="netwait">
+    <div class="big-wait" id="netwaitText">⏳ Ждём, пока соперник расставит флот...</div>
+    <button class="btn btn-red" id="leaveBtn3">🚪 ВЫЙТИ</button>
+  </div>
+
+  <!-- БОЙ -->
+  <div class="panel" id="game">
+    <div class="status you" id="status">Твой ход — стреляй!</div>
+    <div class="boardwrap"><div class="boardlabel"><span>🎯 ПОЛЕ ВРАГА</span><span id="enemyLeft"></span></div><div class="board enemy" id="enemyBoard"></div></div>
+    <div class="boardwrap"><div class="boardlabel"><span>⚓ ТВОЙ ФЛОТ</span><span id="youLeft"></span></div><div class="board" id="myBoard"></div></div>
+    <div id="endBox"></div>
+    <div class="gbtns">
+      <button class="btn btn-main" id="againBtn">🔄 ЗАНОВО</button>
+      <button class="btn btn-ghost" id="menuBtn" style="margin-top:0;">☰ МЕНЮ</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<button class="sndbtn" id="sndbtn" title="Звук">🔊</button>
+
+<script>
+  const SB_URL="https://wifdphfkyfzgjrmrgvob.supabase.co";
+  const SB_KEY="sb_publishable_gOFAG3-xjA8GqFL_uDX5kg_ngk8dZkC";
+  const sb=window.supabase.createClient(SB_URL,SB_KEY);
+
+  const $=(id)=>document.getElementById(id);
+  function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1600);}
+
+  // ===== ЗВУК =====
+  let soundOn=true;
+  $("sndbtn").addEventListener("click",()=>{soundOn=!soundOn;$("sndbtn").textContent=soundOn?"🔊":"🔇";if(soundOn)toast("Звук включён");});
+  function actx(){return new (window.AudioContext||window.webkitAudioContext)();}
+  function noiseBuf(ctx,dur){const n=Math.floor(ctx.sampleRate*dur);const b=ctx.createBuffer(1,n,ctx.sampleRate);const d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;return b;}
+  function playSplash(){if(!soundOn)return;const ctx=actx(),t=ctx.currentTime;
+    const o=ctx.createOscillator();o.type="sine";o.frequency.setValueAtTime(720,t);o.frequency.exponentialRampToValueAtTime(170,t+0.18);
+    const g=ctx.createGain();g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.5,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+0.25);
+    o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.26);
+    const src=ctx.createBufferSource();src.buffer=noiseBuf(ctx,0.25);const lp=ctx.createBiquadFilter();lp.type="lowpass";lp.frequency.setValueAtTime(1200,t);lp.frequency.exponentialRampToValueAtTime(300,t+0.2);
+    const ng=ctx.createGain();ng.gain.setValueAtTime(0.22,t);ng.gain.exponentialRampToValueAtTime(0.0001,t+0.25);
+    src.connect(lp);lp.connect(ng);ng.connect(ctx.destination);src.start(t);src.stop(t+0.26);setTimeout(()=>ctx.close(),450);}
+  function playHit(){if(!soundOn)return;const ctx=actx(),t=ctx.currentTime;
+    const src=ctx.createBufferSource();src.buffer=noiseBuf(ctx,0.18);const bp=ctx.createBiquadFilter();bp.type="bandpass";bp.frequency.value=850;
+    const g=ctx.createGain();g.gain.setValueAtTime(0.5,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.18);
+    src.connect(bp);bp.connect(g);g.connect(ctx.destination);src.start(t);src.stop(t+0.19);
+    const o=ctx.createOscillator();o.type="square";o.frequency.setValueAtTime(300,t);o.frequency.exponentialRampToValueAtTime(85,t+0.15);
+    const og=ctx.createGain();og.gain.setValueAtTime(0.28,t);og.gain.exponentialRampToValueAtTime(0.0001,t+0.17);
+    o.connect(og);og.connect(ctx.destination);o.start(t);o.stop(t+0.18);setTimeout(()=>ctx.close(),380);}
+  function playSunk(){if(!soundOn)return;const ctx=actx(),t=ctx.currentTime;
+    const src=ctx.createBufferSource();src.buffer=noiseBuf(ctx,0.6);const lp=ctx.createBiquadFilter();lp.type="lowpass";lp.frequency.setValueAtTime(1800,t);lp.frequency.exponentialRampToValueAtTime(180,t+0.5);
+    const g=ctx.createGain();g.gain.setValueAtTime(0.6,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.6);
+    src.connect(lp);lp.connect(g);g.connect(ctx.destination);src.start(t);src.stop(t+0.61);
+    const o=ctx.createOscillator();o.type="sine";o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(38,t+0.5);
+    const og=ctx.createGain();og.gain.setValueAtTime(0.5,t);og.gain.exponentialRampToValueAtTime(0.0001,t+0.55);
+    o.connect(og);og.connect(ctx.destination);o.start(t);o.stop(t+0.56);setTimeout(()=>ctx.close(),800);}
+  function playWin(){if(!soundOn)return;const ctx=actx(),t=ctx.currentTime;const notes=[523,659,784,1047];
+    notes.forEach((f,k)=>{const o=ctx.createOscillator();o.type="triangle";o.frequency.value=f;const g=ctx.createGain();const s=t+k*0.13;
+      g.gain.setValueAtTime(0.0001,s);g.gain.exponentialRampToValueAtTime(0.4,s+0.02);g.gain.exponentialRampToValueAtTime(0.0001,s+0.2);
+      o.connect(g);g.connect(ctx.destination);o.start(s);o.stop(s+0.22);});setTimeout(()=>ctx.close(),950);}
+  function soundFor(res){if(res==="miss")playSplash();else if(res==="hit")playHit();else if(res==="sunk")playSunk();}
+
+  const N=10,TOTAL=20;
+  const FLEET=[4,3,3,2,2,2,1,1,1,1];
+  const NAMES=["Сокол","Тигр","Барс","Орёл","Волк","Лис"];
+  const me={id:Math.random().toString(36).slice(2,10),name:NAMES[Math.floor(Math.random()*NAMES.length)]};
+  (async()=>{try{const {data}=await sb.auth.getSession();const nk=data&&data.session&&data.session.user&&data.session.user.user_metadata&&data.session.user.user_metadata.nickname;if(nk)me.name=nk;}catch(e){}})();
+  let MODE="bot";
+
+  // локальный бой с ботом
+  let you={board:Array(100).fill(0),shots:Array(100).fill(0),ships:[],hits:0};
+  let foe={board:Array(100).fill(0),shots:Array(100).fill(0),ships:[],hits:0};
+  let turn="you",over=false,bot={queue:[],curHits:[]};
+
+  // сеть
+  let currentCode=null,isHost=false,channel=null,closed=false,G=null,prevMyShots=null,netPlayers=[];
+
+  // расстановка
+  let placeIdx=0,horiz=true,placeShips=[];
+
+  const rc=(i)=>[Math.floor(i/N),i%N];
+  const idx=(r,c)=>r*N+c;
+  const inB=(r,c)=>r>=0&&r<N&&c>=0&&c<N;
+  function neighbors8(cells){const s=new Set();for(const i of cells){const [r,c]=rc(i);for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){const nr=r+dr,nc=c+dc;if(inB(nr,nc))s.add(idx(nr,nc));}}return s;}
+  function clone(o){return JSON.parse(JSON.stringify(o));}
+  function show(panel){["setup","lobby","place","netwait","game"].forEach(p=>$(p).style.display=(p===panel)?"block":"none");}
+
+  // ===== выбор =====
+  $("segMode").addEventListener("click",(e)=>{const b=e.target.closest("button");if(!b)return;
+    document.querySelectorAll("#segMode button").forEach(x=>x.classList.remove("on"));b.classList.add("on");MODE=b.dataset.m;
+    $("joinBlock").style.display=(MODE==="net")?"block":"none";
+    $("goBtn").textContent=(MODE==="net")?"🚀 СОЗДАТЬ БОЙ":(MODE==="rnd")?"🎲 НАЙТИ СОПЕРНИКА":"⚓ РАССТАВИТЬ ФЛОТ";});
+  $("codeInput").addEventListener("input",(e)=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,7);});
+  $("goBtn").addEventListener("click",()=>{
+    if(MODE==="bot")startPlacement();
+    else if(MODE==="net")createRoom();
+    else findRandom();
+  });
+
+  // ===== расстановка =====
+  function startPlacement(){
+    you={board:Array(100).fill(0),shots:Array(100).fill(0),ships:[],hits:0};
+    placeShips=[];placeIdx=0;horiz=true;
+    show("place");renderFleetQ();drawPlaceBoard();$("fightBtn").disabled=true;$("placeStatus").textContent="Расставь свой флот";
+  }
+  function renderFleetQ(){const q=$("fleetq");q.innerHTML="";FLEET.forEach((s,i)=>{const p=document.createElement("div");p.className="ship-pill"+(i<placeIdx?" done":i===placeIdx?" cur":"");p.textContent="◼".repeat(s);q.appendChild(p);});}
+  function canPlace(board,cells){for(const i of cells)if(board[i])return false;const nb=neighbors8(cells);for(const i of nb)if(board[i]&&!cells.includes(i))return false;return true;}
+  function shipCells(r,c,size,h){const cells=[];for(let k=0;k<size;k++){const rr=h?r:r+k,cc=h?c+k:c;if(!inB(rr,cc))return null;cells.push(idx(rr,cc));}return cells;}
+  function drawPlaceBoard(prev){const bd=$("placeBoard");bd.innerHTML="";for(let i=0;i<100;i++){const c=document.createElement("div");c.className="cell"+(you.board[i]?" ship":"");if(prev&&prev.cells&&prev.cells.includes(i))c.classList.add(prev.ok?"preview":"bad");c.onmouseenter=()=>hover(i);c.onclick=()=>placeAt(i);bd.appendChild(c);}}
+  function hover(i){if(placeIdx>=FLEET.length)return;const [r,c]=rc(i);const cells=shipCells(r,c,FLEET[placeIdx],horiz);const ok=cells&&canPlace(you.board,cells);drawPlaceBoard({cells:cells||[],ok});}
+  function placeAt(i){if(placeIdx>=FLEET.length){toast("Флот уже расставлен");return;}const [r,c]=rc(i);const cells=shipCells(r,c,FLEET[placeIdx],horiz);
+    if(!cells){toast("Корабль не влезает");return;}if(!canPlace(you.board,cells)){toast("Тут нельзя — корабли касаются");return;}
+    cells.forEach(x=>you.board[x]=1);placeShips.push({cells:cells.slice()});placeIdx++;renderFleetQ();drawPlaceBoard();
+    $("placeStatus").textContent=placeIdx<FLEET.length?("Осталось: "+(FLEET.length-placeIdx)):"Флот готов — жми В БОЙ!";if(placeIdx>=FLEET.length)$("fightBtn").disabled=false;}
+  $("rotateBtn").addEventListener("click",()=>{horiz=!horiz;toast(horiz?"↔️ горизонтально":"↕️ вертикально");});
+  $("clearBtn").addEventListener("click",()=>{you.board=Array(100).fill(0);placeShips=[];placeIdx=0;renderFleetQ();drawPlaceBoard();$("fightBtn").disabled=true;$("placeStatus").textContent="Расставь свой флот";});
+  $("randBtn").addEventListener("click",()=>{const res=randomFleet();you.board=res.board;placeShips=res.ships;placeIdx=FLEET.length;renderFleetQ();drawPlaceBoard();$("fightBtn").disabled=false;$("placeStatus").textContent="Флот готов — жми В БОЙ!";});
+  function randomFleet(){for(let a=0;a<200;a++){const board=Array(100).fill(0),ships=[];let ok=true;
+    for(const size of FLEET){let placed=false;for(let t=0;t<200;t++){const h=Math.random()<0.5;const r=Math.floor(Math.random()*N),c=Math.floor(Math.random()*N);const cells=shipCells(r,c,size,h);if(cells&&canPlace(board,cells)){cells.forEach(x=>board[x]=1);ships.push({cells:cells.slice()});placed=true;break;}}if(!placed){ok=false;break;}}
+    if(ok)return {board,ships};}return {board:Array(100).fill(0),ships:[]};}
+
+  $("fightBtn").addEventListener("click",()=>{if(MODE==="bot")startBotBattle();else netReady();});
+
+  // ===== ОБЩИЕ ХЕЛПЕРЫ ВЫСТРЕЛА (локальные структуры) =====
+  function shipAt(side,i){return side.ships.find(s=>s.cells.includes(i));}
+  function isSunk(side,ship){return ship.cells.every(c=>side.shots[c]===2);}
+  function markSunkSurround(side,ship){const nb=neighbors8(ship.cells);for(const i of nb)if(!ship.cells.includes(i)&&side.shots[i]===0)side.shots[i]=1;}
+  function shoot(side,i){if(side.shots[i]!==0)return null;if(side.board[i]){side.shots[i]=2;side.hits++;const sh=shipAt(side,i);if(sh&&isSunk(side,sh)){markSunkSurround(side,sh);return "sunk";}return "hit";}else{side.shots[i]=1;return "miss";}}
+  function shipsLeft(side){return side.ships.filter(s=>!isSunk(side,s)).length;}
+
+  // ===== БОЙ С БОТОМ =====
+  function startBotBattle(){
+    const f=randomFleet();
+    foe={board:f.board,shots:Array(100).fill(0),ships:f.ships,hits:0};
+    you.shots=Array(100).fill(0);you.hits=0;you.ships=placeShips;
+    turn="you";over=false;bot={queue:[],curHits:[]};
+    show("game");$("endBox").innerHTML="";drawBotBattle();botStatus();
+  }
+  function drawBotBattle(){
+    const eb=$("enemyBoard");eb.innerHTML="";
+    for(let i=0;i<100;i++){const c=document.createElement("div");let cls="cell";const s=foe.shots[i];
+      if(s===1)cls+=" miss";else if(s===2){const sh=shipAt(foe,i);cls+=(sh&&isSunk(foe,sh))?" sunk":" hit";}
+      c.className=cls;c.onclick=()=>playerShoot(i);eb.appendChild(c);}
+    const mb=$("myBoard");mb.innerHTML="";
+    for(let i=0;i<100;i++){const c=document.createElement("div");let cls="cell";const s=you.shots[i];
+      if(s===2){const sh=shipAt(you,i);cls+=(sh&&isSunk(you,sh))?" sunk":" hit";}else if(s===1)cls+=" miss";else if(you.board[i])cls+=" ship";
+      c.className=cls;mb.appendChild(c);}
+    $("enemyLeft").textContent="🚢 "+shipsLeft(foe);$("youLeft").textContent="🚢 "+shipsLeft(you);
+  }
+  function botStatus(){if(over)return;const el=$("status");if(turn==="you"){el.className="status you";el.textContent="Твой ход — стреляй!";}else{el.className="status bot";el.textContent="Ходит бот...";}}
+  function playerShoot(i){if(over||turn!=="you")return;if(foe.shots[i]!==0)return;const res=shoot(foe,i);drawBotBattle();soundFor(res);
+    if(foe.hits>=TOTAL){botEnd("you");return;}if(res==="miss"){turn="bot";botStatus();setTimeout(botTurn,650);}else{botStatus();if(res==="sunk")toast("💥 Убил!");}}
+  function botTurn(){if(over)return;const i=botPick();const res=shoot(you,i);botRecord(i,res);drawBotBattle();soundFor(res);
+    if(you.hits>=TOTAL){botEnd("bot");return;}if(res==="miss"){turn="you";botStatus();}else{botStatus();setTimeout(botTurn,650);}}
+  function botPick(){while(bot.queue.length){const i=bot.queue.shift();if(you.shots[i]===0)return i;}const free=[],freeP=[];for(let i=0;i<100;i++)if(you.shots[i]===0){free.push(i);const [r,c]=rc(i);if((r+c)%2===0)freeP.push(i);}const pool=freeP.length?freeP:free;return pool[Math.floor(Math.random()*pool.length)];}
+  function botRecord(i,res){if(res==="miss")return;if(res==="sunk"){bot.queue=[];bot.curHits=[];return;}bot.curHits.push(i);
+    if(bot.curHits.length===1){const [r,c]=rc(i);[[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([rr,cc])=>{if(inB(rr,cc)&&you.shots[idx(rr,cc)]===0)bot.queue.push(idx(rr,cc));});}
+    else{const rows=bot.curHits.map(x=>rc(x)[0]),cols=bot.curHits.map(x=>rc(x)[1]);const sameRow=rows.every(x=>x===rows[0]);bot.queue=[];
+      if(sameRow){const r=rows[0],minc=Math.min(...cols),maxc=Math.max(...cols);if(inB(r,minc-1)&&you.shots[idx(r,minc-1)]===0)bot.queue.push(idx(r,minc-1));if(inB(r,maxc+1)&&you.shots[idx(r,maxc+1)]===0)bot.queue.push(idx(r,maxc+1));}
+      else{const c=cols[0],minr=Math.min(...rows),maxr=Math.max(...rows);if(inB(minr-1,c)&&you.shots[idx(minr-1,c)]===0)bot.queue.push(idx(minr-1,c));if(inB(maxr+1,c)&&you.shots[idx(maxr+1,c)]===0)bot.queue.push(idx(maxr+1,c));}}}
+  function botEnd(who){over=true;drawBotBattle();if(who==="you")playWin();const el=$("status");el.className="status win";el.textContent=who==="you"?"🏆 Победа!":"💀 Бот победил";
+    $("endBox").innerHTML='<div class="end"><div class="em">'+(who==="you"?"🏆":"💀")+'</div><div class="ttl '+(who==="you"?"win":"lose")+'">'+(who==="you"?"ТЫ ВЫИГРАЛ!":"БОТ ВЫИГРАЛ")+'</div></div>';}
+
+  // ===== СЕТЬ =====
+  // ===== РАНДОМ (поиск случайного соперника) =====
+  const NEED_ONLINE=10;
+  async function findRandom(){
+    MODE="rnd";
+    $("setupStatus").textContent="🎲 Ищу игроков в сети...";$("setupStatus").className="status you";
+    // считаем, сколько игроков сейчас ищут (presence)
+    const pool=sb.channel("mb-online",{config:{presence:{key:me.id}}});
+    await new Promise(res=>{pool.subscribe(async(st)=>{if(st==="SUBSCRIBED"){await pool.track({t:Date.now()});setTimeout(res,1600);}});});
+    const count=Object.keys(pool.presenceState()).length;
+    sb.removeChannel(pool);
+    if(count<NEED_ONLINE){
+      $("setupStatus").textContent="🎲 Сейчас в поиске "+count+" из "+NEED_ONLINE+". Рандом включится, когда наберётся больше игроков. Пока зови друга по коду 🌐 или играй с ботом 🤖!";
+      $("setupStatus").className="status bot";
+      return;
+    }
+    // людей хватает — ищем открытую комнату или создаём свою
+    const {data:rooms}=await sb.from("rooms").select("*").eq("game","seabattle-rnd").eq("status","waiting").limit(10);
+    const open=(rooms||[]).find(r=>{const ps=Array.isArray(r.players)?r.players:[];return ps.length===1&&!ps.some(p=>p.id===me.id)&&!r.state;});
+    if(open){
+      const ps=open.players.slice();ps.push(me);
+      await sb.from("rooms").update({players:ps}).eq("code",open.code);
+      isHost=false;await enterRoom(open.code);
+    } else {
+      let code=genCode();
+      await sb.from("rooms").insert({code,game:"seabattle-rnd",max_players:2,players:[me],status:"waiting"});
+      isHost=true;await enterRoom(code);
+      $("lobbyStatus").textContent="🎲 Ждём случайного соперника...";
+    }
+  }
+
+  function genCode(){let s="";for(let i=0;i<7;i++)s+=Math.floor(Math.random()*10);return s;}
+  async function createRoom(){
+    $("setupStatus").textContent="Создаю бой...";$("setupStatus").className="status you";
+    let code,tries=0,ok=false;
+    while(tries<5){code=genCode();const {error}=await sb.from("rooms").insert({code,game:"seabattle",max_players:2,players:[me],status:"waiting"});if(!error){ok=true;break;}tries++;}
+    if(!ok){$("setupStatus").textContent="Не вышло, попробуй ещё.";$("setupStatus").className="status bot";return;}
+    isHost=true;await enterRoom(code);
+  }
+  $("joinBtn").addEventListener("click",async()=>{
+    const code=$("codeInput").value.trim();
+    if(code.length!==7){$("setupStatus").textContent="Код — 7 цифр.";$("setupStatus").className="status bot";return;}
+    const {data,error}=await sb.from("rooms").select("*").eq("code",code).maybeSingle();
+    if(error||!data){$("setupStatus").textContent="Бой не найден 😕";$("setupStatus").className="status bot";return;}
+    if(data.state&&data.state.phase!=="placing"){$("setupStatus").textContent="Бой уже идёт.";$("setupStatus").className="status bot";return;}
+    const players=Array.isArray(data.players)?data.players:[];
+    if(players.length>=2&&!players.some(p=>p.id===me.id)){$("setupStatus").textContent="Бой заполнен.";$("setupStatus").className="status bot";return;}
+    if(!players.some(p=>p.id===me.id))players.push(me);
+    await sb.from("rooms").update({players}).eq("code",code);
+    isHost=false;await enterRoom(code);
+  });
+  async function enterRoom(code){
+    MODE="net";currentCode=code;closed=false;G=null;prevMyShots=null;
+    show("lobby");$("lobbyCode").textContent=code;
+    const {data}=await sb.from("rooms").select("*").eq("code",code).maybeSingle();
+    if(data)handleRoom(data);
+    channel=sb.channel("room-"+code).on("postgres_changes",{event:"*",schema:"public",table:"rooms",filter:"code=eq."+code},(p)=>{if(p.eventType==="DELETE"){onGone();return;}handleRoom(p.new);}).subscribe();
+  }
+  function initPlacingState(players){const ids=players.map(p=>p.id);return {order:ids,names:Object.fromEntries(players.map(p=>[p.id,p.name])),phase:"placing",boards:{},ships:{},shots:Object.fromEntries(ids.map(id=>[id,Array(100).fill(0)])),ready:Object.fromEntries(ids.map(id=>[id,false])),hits:Object.fromEntries(ids.map(id=>[id,0])),turn:ids[0],winner:null};}
+  function oppId(){return G.order.find(id=>id!==me.id);}
+  function handleRoom(data){
+    if(!data)return;
+    const players=Array.isArray(data.players)?data.players:[];
+    netPlayers=players.slice(0,2);
+    if(!data.state){
+      if(players.length>=2){
+        if(isHost){const st=initPlacingState(players.slice(0,2));sb.from("rooms").update({state:st,status:"placing"}).eq("code",currentCode);}
+        if($("place").style.display!=="block"&&$("game").style.display!=="block"&&$("netwait").style.display!=="block")startPlacement();
+      } else renderLobby(data);
+      return;
+    }
+    G=data.state;
+    if(G.phase==="placing"){
+      if(isHost&&G.order.every(id=>G.ready[id])){const st=clone(G);st.phase="battle";st.turn=st.order[0];sb.from("rooms").update({state:st,status:"battle"}).eq("code",currentCode);return;}
+      if(G.ready[me.id]){show("netwait");$("netwaitText").textContent="⏳ Ждём, пока соперник расставит флот...";return;}
+      if($("place").style.display!=="block"&&$("game").style.display!=="block")startPlacement();
+      return;
+    }
+    if(G.phase==="battle"||G.phase==="over"){netBattle(G);return;}
+  }
+  function renderLobby(data){
+    show("lobby");
+    const players=Array.isArray(data.players)?data.players:[];
+    const box=$("players");box.innerHTML="";
+    players.forEach(p=>{const isMe=p.id===me.id,el=document.createElement("div");el.className="pl";el.innerHTML='<div class="av">'+(isMe?"🫵":"👤")+'</div><div class="nm">'+p.name+'</div>'+(isMe?'<div class="me">ТЫ</div>':'');box.appendChild(el);});
+    for(let i=players.length;i<2;i++){const el=document.createElement("div");el.className="slot";el.textContent="⌛ ждём соперника...";box.appendChild(el);}
+    $("lobbyStatus").textContent=players.length>=2?"Оба на месте — расставляем флот!":"Скинь код другу";$("lobbyStatus").className="status you";
+  }
+  async function netReady(){
+    const {data}=await sb.from("rooms").select("*").eq("code",currentCode).maybeSingle();
+    if(!data)return;
+    const players=(data.players||netPlayers).slice(0,2);
+    let st=data.state;
+    if(!st||!st.shots)st=initPlacingState(players);
+    st.boards[me.id]=you.board.slice();
+    st.ships[me.id]=placeShips.map(s=>({cells:s.cells.slice()}));
+    st.ready[me.id]=true;
+    if(st.order.every(id=>st.ready[id])){st.phase="battle";st.turn=st.order[0];}
+    await sb.from("rooms").update({state:st,status:st.phase}).eq("code",currentCode);
+    show("netwait");
+  }
+  // net хелперы
+  function nShipAt(st,id,i){return (st.ships[id]||[]).find(s=>s.cells.includes(i));}
+  function nSunk(st,id,sh){return sh.cells.every(c=>st.shots[id][c]===2);}
+  function nSurround(st,id,sh){const nb=neighbors8(sh.cells);for(const x of nb)if(!sh.cells.includes(x)&&st.shots[id][x]===0)st.shots[id][x]=1;}
+  function nShipsLeft(st,id){return (st.ships[id]||[]).filter(s=>!nSunk(st,id,s)).length;}
+  async function netShoot(i){
+    if(MODE!=="net"||!G||G.phase!=="battle"||G.turn!==me.id)return;
+    const opp=oppId();if(G.shots[opp][i]!==0)return;
+    const st=clone(G);let res;
+    if(st.boards[opp][i]){st.shots[opp][i]=2;st.hits[opp]++;const sh=nShipAt(st,opp,i);if(sh&&nSunk(st,opp,sh)){nSurround(st,opp,sh);res="sunk";}else res="hit";}
+    else{st.shots[opp][i]=1;res="miss";}
+    soundFor(res);if(res==="sunk")toast("💥 Убил!");
+    if(st.hits[opp]>=TOTAL){st.winner=me.id;st.phase="over";}
+    else if(res==="miss")st.turn=opp;
+    await sb.from("rooms").update({state:st,status:st.phase==="over"?"over":"battle"}).eq("code",currentCode);
+  }
+  function netBattle(st){
+    show("game");
+    const opp=oppId();
+    // звук за входящие выстрелы по мне
+    const mine=st.shots[me.id];
+    if(prevMyShots){for(let i=0;i<100;i++){if(prevMyShots[i]===0&&mine[i]!==0){const sh=nShipAt(st,me.id,i);if(mine[i]===2)soundFor(sh&&nSunk(st,me.id,sh)?"sunk":"hit");else soundFor("miss");break;}}}
+    prevMyShots=mine.slice();
+    // поле врага (я стреляю)
+    const eb=$("enemyBoard");eb.innerHTML="";
+    for(let i=0;i<100;i++){const c=document.createElement("div");let cls="cell";const s=st.shots[opp][i];
+      if(s===1)cls+=" miss";else if(s===2){const sh=nShipAt(st,opp,i);cls+=(sh&&nSunk(st,opp,sh))?" sunk":" hit";}
+      c.className=cls;c.onclick=()=>netShoot(i);eb.appendChild(c);}
+    // мой флот
+    const mb=$("myBoard");mb.innerHTML="";
+    for(let i=0;i<100;i++){const c=document.createElement("div");let cls="cell";const s=mine[i];
+      if(s===2){const sh=nShipAt(st,me.id,i);cls+=(sh&&nSunk(st,me.id,sh))?" sunk":" hit";}else if(s===1)cls+=" miss";else if(st.boards[me.id]&&st.boards[me.id][i])cls+=" ship";
+      c.className=cls;mb.appendChild(c);}
+    $("enemyLeft").textContent="🚢 "+nShipsLeft(st,opp);$("youLeft").textContent="🚢 "+nShipsLeft(st,me.id);
+    const el=$("status");
+    if(st.phase==="over"){el.className="status win";const win=st.winner===me.id;el.textContent=win?"🏆 Победа!":"💀 Поражение";if(win)playWin();
+      $("endBox").innerHTML='<div class="end"><div class="em">'+(win?"🏆":"💀")+'</div><div class="ttl '+(win?"win":"lose")+'">'+(win?"ТЫ ВЫИГРАЛ!":"СОПЕРНИК ВЫИГРАЛ")+'</div></div>';}
+    else{$("endBox").innerHTML="";if(st.turn===me.id){el.className="status you";el.textContent="Твой ход — стреляй!";}else{el.className="status bot";el.textContent="Ход соперника...";}}
+  }
+
+  // ===== КНОПКИ ВЫХОДА / ЗАНОВО =====
+  $("leaveBtn").addEventListener("click",()=>leaveNet());
+  $("leaveBtn3").addEventListener("click",()=>leaveNet());
+  async function leaveNet(){if(isHost){await sb.from("rooms").delete().eq("code",currentCode);}else{const {data}=await sb.from("rooms").select("players").eq("code",currentCode).maybeSingle();if(data&&Array.isArray(data.players))await sb.from("rooms").update({players:data.players.filter(p=>p.id!==me.id)}).eq("code",currentCode);}closeNet();}
+  function onGone(){if(!closed)closeNet("Соперник вышел — бой закрыт.");}
+  function closeNet(msg){closed=true;if(channel){sb.removeChannel(channel);channel=null;}currentCode=null;isHost=false;G=null;prevMyShots=null;show("setup");$("codeInput").value="";$("setupStatus").textContent=msg||"";$("setupStatus").className="status you";}
+  $("copyCode").addEventListener("click",()=>{if(!currentCode)return;navigator.clipboard&&navigator.clipboard.writeText(currentCode);toast("Код скопирован: "+currentCode);});
+
+  $("againBtn").addEventListener("click",()=>{
+    if(MODE==="bot"){startPlacement();}
+    else{if(isHost){const {0:_}=[0];sb.from("rooms").select("players").eq("code",currentCode).maybeSingle().then(({data})=>{if(data){const st=initPlacingState(data.players.slice(0,2));sb.from("rooms").update({state:st,status:"placing"}).eq("code",currentCode);}});}else toast("Новую игру начинает создатель боя");}
+  });
+  $("menuBtn").addEventListener("click",()=>{if(MODE==="net")leaveNet();else show("setup");});
+</script>
+</body>
+</html>

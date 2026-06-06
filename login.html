@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>МИР НАСТОЛОК — Вход</title>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body {
+    font-family:'Orbitron',sans-serif;
+    background:radial-gradient(circle at 50% -5%, #2a1d52 0%, #120a26 60%, #0a0612 100%);
+    color:#ece6ff; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:20px; user-select:none;
+  }
+  .logo { text-align:center; margin-bottom:26px; }
+  h1 {
+    font-family:'Russo One',sans-serif; font-size:40px; letter-spacing:3px; line-height:1.05;
+    color:#fff; text-shadow:0 0 14px #8e44ad,0 0 30px #6c5ce7;
+  }
+  .logo .dice { font-size:46px; margin-bottom:6px; }
+  .tagline { font-size:12px; letter-spacing:4px; color:#b3a4e0; margin-top:8px; }
+  .card {
+    width:100%; max-width:380px;
+    background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.14); border-radius:18px;
+    padding:24px; box-shadow:0 10px 40px rgba(108,92,231,.25);
+  }
+  .tabs { display:flex; gap:8px; margin-bottom:20px; }
+  .tab {
+    flex:1; padding:11px; border:none; border-radius:10px; cursor:pointer;
+    font-family:'Russo One'; font-size:14px; letter-spacing:1px;
+    background:rgba(255,255,255,.06); color:#b3a4e0; transition:.15s;
+  }
+  .tab.active { background:#6c5ce7; color:#fff; box-shadow:0 0 16px rgba(108,92,231,.6); }
+  label { display:block; font-size:11px; letter-spacing:1px; color:#b3a4e0; margin:14px 0 6px; }
+  input {
+    width:100%; padding:14px; border-radius:10px; border:1px solid rgba(255,255,255,.18);
+    background:rgba(0,0,0,.25); color:#fff; font-family:'Orbitron'; font-size:16px;
+    outline:none; transition:.15s;
+  }
+  input:focus { border-color:#6c5ce7; box-shadow:0 0 0 3px rgba(108,92,231,.25); }
+  .btn {
+    width:100%; margin-top:22px; padding:15px; border:none; border-radius:12px;
+    font-family:'Russo One'; font-size:16px; letter-spacing:1px; cursor:pointer;
+    background:#6c5ce7; color:#fff; box-shadow:0 0 18px rgba(108,92,231,.6); transition:.15s;
+  }
+  .btn:active { transform:scale(.97); }
+  .btn:disabled { opacity:.55; cursor:default; }
+  .msg { margin-top:16px; font-size:13px; line-height:1.5; text-align:center; min-height:20px; }
+  .msg.ok { color:#6ee7a8; }
+  .msg.err { color:#ff8a8a; }
+  .hint { margin-top:18px; font-size:11px; color:#8a7fb0; text-align:center; line-height:1.5; }
+  @media(max-width:420px){ h1{font-size:30px;} }
+</style>
+</head>
+<body>
+  <div class="logo">
+    <div class="dice">🎲</div>
+    <h1>МИР НАСТОЛОК</h1>
+    <div class="tagline">ИГРАЙ С ДРУЗЬЯМИ</div>
+  </div>
+
+  <div class="card" id="authCard">
+    <div class="tabs">
+      <button class="tab active" id="tabLogin">ВОЙТИ</button>
+      <button class="tab" id="tabReg">РЕГИСТРАЦИЯ</button>
+    </div>
+
+    <label for="email">Электронная почта</label>
+    <input id="email" type="email" inputmode="email" autocomplete="email" placeholder="you@mail.ru">
+
+    <label for="pass">Пароль</label>
+    <input id="pass" type="password" autocomplete="current-password" placeholder="минимум 6 символов">
+
+    <button class="btn" id="submit">ВОЙТИ</button>
+
+    <div class="msg" id="msg"></div>
+    <div class="hint" id="hint">Войди, чтобы попасть в Мир Настолок 🎮</div>
+  </div>
+
+  <div class="card" id="nickCard" style="display:none;">
+    <label for="nick" style="margin-top:0;">Придумай никнейм (до 12 символов)</label>
+    <input id="nick" type="text" maxlength="12" placeholder="Капитан">
+    <button class="btn" id="nickSave">СОХРАНИТЬ И ИГРАТЬ</button>
+    <div class="msg" id="nickMsg"></div>
+    <div class="hint">Этот ник будут видеть друзья в сетевых играх 🌐</div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = 'https://wifdphfkyfzgjrmrgvob.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_gOFAG3-xjA8GqFL_uDX5kg_ngk8dZkC';
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let mode = 'login'; // 'login' | 'register'
+  const tabLogin = document.getElementById('tabLogin');
+  const tabReg   = document.getElementById('tabReg');
+  const submit   = document.getElementById('submit');
+  const emailEl  = document.getElementById('email');
+  const passEl   = document.getElementById('pass');
+  const msgEl    = document.getElementById('msg');
+  const hintEl   = document.getElementById('hint');
+
+  // если уже вошёл — проверяем ник
+  db.auth.getSession().then(({data})=>{
+    if(data.session){ afterAuth(data.session); }
+  });
+
+  // карточка никнейма
+  const authCard=document.getElementById('authCard');
+  const nickCard=document.getElementById('nickCard');
+  const nickEl=document.getElementById('nick');
+  const nickMsg=document.getElementById('nickMsg');
+  const nickSave=document.getElementById('nickSave');
+
+  function getNick(session){
+    return session && session.user && session.user.user_metadata && session.user.user_metadata.nickname;
+  }
+  function afterAuth(session){
+    if(getNick(session)){ window.location.href='index.html'; }
+    else { authCard.style.display='none'; nickCard.style.display='block'; nickEl.focus(); }
+  }
+  nickSave.onclick = async ()=>{
+    const nick = nickEl.value.trim();
+    if(nick.length < 2){ nickMsg.textContent='Ник минимум 2 символа.'; nickMsg.className='msg err'; return; }
+    if(nick.length > 12){ nickMsg.textContent='Максимум 12 символов.'; nickMsg.className='msg err'; return; }
+    nickSave.disabled=true; nickMsg.textContent='Сохраняю…'; nickMsg.className='msg';
+    try{
+      const { error } = await db.auth.updateUser({ data:{ nickname: nick } });
+      if(error) throw error;
+      nickMsg.textContent='✅ Готово!'; nickMsg.className='msg ok';
+      setTimeout(()=>{ window.location.href='index.html'; }, 500);
+    }catch(e){ nickMsg.textContent='Ошибка, попробуй ещё раз.'; nickMsg.className='msg err'; nickSave.disabled=false; }
+  };
+  nickEl && nickEl.addEventListener('keydown', e=>{ if(e.key==='Enter') nickSave.onclick(); });
+
+  function setMode(m){
+    mode = m;
+    const login = m==='login';
+    tabLogin.classList.toggle('active', login);
+    tabReg.classList.toggle('active', !login);
+    submit.textContent = login ? 'ВОЙТИ' : 'СОЗДАТЬ АККАУНТ';
+    passEl.setAttribute('autocomplete', login ? 'current-password' : 'new-password');
+    hintEl.textContent = login
+      ? 'Войди, чтобы попасть в Мир Настолок 🎮'
+      : 'Создай аккаунт — на почту придёт письмо для подтверждения 📨';
+    show('','');
+  }
+  tabLogin.onclick = ()=>setMode('login');
+  tabReg.onclick   = ()=>setMode('register');
+
+  function show(text, cls){ msgEl.textContent = text; msgEl.className = 'msg ' + (cls||''); }
+
+  function ruError(e){
+    const m = (e && e.message || '').toLowerCase();
+    if(m.includes('invalid login')) return 'Неверная почта или пароль.';
+    if(m.includes('email not confirmed')) return 'Почта ещё не подтверждена — проверь письмо 📨';
+    if(m.includes('already registered') || m.includes('already been registered')) return 'Такая почта уже зарегистрирована. Нажми «Войти».';
+    if(m.includes('password') && m.includes('6')) return 'Пароль должен быть минимум 6 символов.';
+    if(m.includes('valid email') || m.includes('invalid email')) return 'Проверь, правильно ли написана почта.';
+    if(m.includes('rate limit') || m.includes('seconds')) return 'Слишком часто. Подожди немного и попробуй снова.';
+    return 'Ошибка: ' + (e && e.message || 'что-то пошло не так');
+  }
+
+  async function go(){
+    const email = emailEl.value.trim();
+    const pass  = passEl.value;
+    if(!email || !pass){ show('Заполни почту и пароль.', 'err'); return; }
+    if(pass.length < 6){ show('Пароль должен быть минимум 6 символов.', 'err'); return; }
+
+    submit.disabled = true;
+    show('Подождите…', '');
+
+    try {
+      if(mode === 'register'){
+        const { data, error } = await db.auth.signUp({ email, password: pass });
+        if(error) throw error;
+        show('✅ Готово! Мы отправили письмо на ' + email + '. Открой его и нажми ссылку подтверждения, потом возвращайся и войди.', 'ok');
+      } else {
+        const { data, error } = await db.auth.signInWithPassword({ email, password: pass });
+        if(error) throw error;
+        show('✅ Вход выполнен! Загружаем…', 'ok');
+        setTimeout(()=>{ afterAuth(data.session); }, 500);
+      }
+    } catch(e){
+      show(ruError(e), 'err');
+    } finally {
+      submit.disabled = false;
+    }
+  }
+
+  submit.onclick = go;
+  passEl.addEventListener('keydown', e=>{ if(e.key==='Enter') go(); });
+</script>
+</body>
+</html>
