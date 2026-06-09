@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Судоку — МИР НАСТОЛОК</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg1:#1a0b2e; --bg2:#2d1b4e; --bg3:#0f0620;
+    --violet:#9d4edd; --violet-bright:#c77dff; --violet-deep:#7b2cbf;
+    --gold:#ffd60a; --green:#52ff8f; --red:#ff5c7a; --blue:#7db4ff;
+    --ink:#f0e9ff; --muted:#b39ddb;
+    --cellbg:rgba(157,78,221,.07); --given:#fff; --user:#7db4ff;
+    --card:rgba(157,78,221,.10); --line:rgba(199,125,255,.28);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{font-family:'Orbitron',sans-serif;color:var(--ink);
+    background:radial-gradient(900px 600px at 50% -10%, rgba(157,78,221,.30), transparent 60%),linear-gradient(160deg,var(--bg1),var(--bg3) 55%,var(--bg2));
+    background-attachment:fixed;min-height:100vh;display:flex;justify-content:center;padding:16px 12px 36px;overflow-x:hidden;}
+  .wrap{width:100%;max-width:440px;display:flex;flex-direction:column;gap:16px;}
+  .ico{display:block;text-align:center;font-size:40px;}
+  .title{text-align:center;font-family:'Russo One',sans-serif;font-size:clamp(24px,7vw,30px);letter-spacing:1px;
+    background:linear-gradient(180deg,#fff,var(--violet-bright));-webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 24px rgba(199,125,255,.35);margin-top:-2px;}
+  .sub{text-align:center;color:var(--muted);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:-6px;}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px 16px;backdrop-filter:blur(10px);box-shadow:0 18px 50px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);}
+  .panel h2{font-family:'Russo One',sans-serif;font-weight:400;font-size:16px;margin-bottom:14px;text-align:center;color:var(--violet-bright);}
+  .levels{display:flex;flex-direction:column;gap:10px;}
+  .lvl{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:rgba(157,78,221,.06);cursor:pointer;transition:.15s;text-align:left;width:100%;color:var(--ink);font-family:'Orbitron',sans-serif;}
+  .lvl:active{transform:scale(.98);}
+  .lvl:hover{border-color:var(--violet-bright);box-shadow:0 0 16px rgba(157,78,221,.3);}
+  .lvl .dot{font-size:20px;}
+  .lvl .nm{font-family:'Russo One',sans-serif;font-size:16px;flex:1;}
+  .lvl .cnt{font-size:11px;color:var(--muted);}
+
+  #game{display:none;}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:13px;}
+  .topbar .lv{color:var(--violet-bright);font-family:'Russo One',sans-serif;}
+  .topbar .tm{color:var(--gold);font-family:'Russo One',sans-serif;}
+  .topbar .mist{color:var(--red);}
+
+  .board{display:grid;grid-template-columns:repeat(9,1fr);aspect-ratio:1/1;background:var(--violet-bright);gap:1px;padding:2px;border-radius:10px;border:2px solid var(--violet-bright);}
+  .sq{background:var(--bg3);display:grid;place-items:center;font-family:'Russo One',sans-serif;font-size:clamp(15px,5.2vw,24px);cursor:pointer;user-select:none;position:relative;transition:background .1s;}
+  .sq.given{color:var(--given);}
+  .sq.user{color:var(--user);}
+  .sq.bad{color:var(--red)!important;}
+  .sq.sel{background:#fff!important;outline:2px solid var(--violet-deep);outline-offset:-2px;}
+  .sq.same{background:#fff!important;}
+  .sq.sel:not(.bad),.sq.same:not(.bad){color:var(--violet)!important;-webkit-text-stroke:1px #000;text-stroke:1px #000;paint-order:stroke fill;}
+  .sq.flash{background:#fff!important;color:#fff!important;-webkit-text-stroke:0!important;z-index:2;animation:flashpulse .5s ease-in-out infinite;}
+  @keyframes flashpulse{0%,100%{box-shadow:0 0 10px rgba(255,255,255,.6);}50%{box-shadow:0 0 22px rgba(255,255,255,1);}}
+  /* толстые границы блоков 3x3 */
+  .sq[data-c="2"],.sq[data-c="5"]{box-shadow:inset -2px 0 0 var(--violet-bright);}
+  .sq[data-r="2"],.sq[data-r="5"]{box-shadow:inset 0 -2px 0 var(--violet-bright);}
+  .sq[data-c="2"][data-r="2"],.sq[data-c="2"][data-r="5"],.sq[data-c="5"][data-r="2"],.sq[data-c="5"][data-r="5"]{box-shadow:inset -2px 0 0 var(--violet-bright),inset 0 -2px 0 var(--violet-bright);}
+  .notes{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);width:100%;height:100%;padding:1px;}
+  .notes span{font-family:'Orbitron';font-size:8px;color:var(--muted);display:grid;place-items:center;line-height:1;}
+
+  .pad{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:14px;}
+  .pad button{padding:14px 0;border:1px solid var(--line);background:rgba(157,78,221,.08);color:var(--ink);border-radius:12px;font-family:'Russo One',sans-serif;font-size:20px;cursor:pointer;transition:.12s;}
+  .pad button:active{transform:scale(.92);background:rgba(157,78,221,.25);}
+  .pad button.done{opacity:.3;}
+  .tools{display:flex;gap:8px;margin-top:10px;}
+  .tools button{flex:1;padding:12px 0;border:1px solid var(--line);background:transparent;color:var(--violet-bright);border-radius:12px;font-family:'Russo One',sans-serif;font-size:13px;cursor:pointer;}
+  .tools button.on{background:linear-gradient(180deg,var(--violet),var(--violet-deep));color:#fff;border-color:var(--violet-bright);}
+  .tools button:active{transform:scale(.96);}
+
+  .btn{width:100%;padding:14px;border:none;border-radius:14px;cursor:pointer;font-family:'Russo One',sans-serif;font-size:15px;transition:.18s;margin-top:14px;}
+  .btn:active{transform:scale(.97);}
+  .btn-main{background:linear-gradient(135deg,var(--violet-bright),var(--violet-deep));color:#fff;box-shadow:0 10px 26px rgba(123,44,191,.5);}
+  .btn-ghost{background:transparent;color:var(--violet-bright);border:1px solid var(--line);}
+  .gbtns{display:flex;gap:10px;}
+  .gbtns .btn{margin-top:14px;}
+
+  .status{text-align:center;font-family:'Russo One',sans-serif;min-height:22px;margin-top:12px;font-size:15px;}
+  .status.win{color:var(--green);}.status.err{color:var(--red);}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(40px);background:var(--violet-deep);color:#fff;padding:12px 22px;border-radius:30px;font-size:13px;opacity:0;transition:.3s;pointer-events:none;z-index:50;box-shadow:0 12px 30px rgba(0,0,0,.5);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .loading{text-align:center;color:var(--muted);padding:30px 0;font-size:14px;}
+  .win-overlay{text-align:center;padding:10px 0;}
+  .win-overlay .em{font-size:50px;}
+  .win-overlay .ttl{font-family:'Russo One',sans-serif;font-size:24px;color:var(--gold);margin:6px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <span class="ico">🔢</span>
+    <div class="title">СУДОКУ</div>
+    <div class="sub">МИР НАСТОЛОК</div>
+  </div>
+
+  <!-- ВЫБОР УРОВНЯ -->
+  <div class="panel" id="setup">
+    <h2>Выбери сложность</h2>
+    <div class="levels" id="levels"></div>
+  </div>
+
+  <!-- ИГРА -->
+  <div class="panel" id="game">
+    <div class="topbar">
+      <span class="lv" id="lvLabel">—</span>
+      <span class="mist" id="mistakes">Ошибки: 0</span>
+      <span class="tm" id="timer">0:00</span>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="tools">
+      <button id="noteBtn">✏️ Заметки</button>
+      <button id="eraseBtn">🧽 Стереть</button>
+      <button id="hintBtn">💡 Подсказка</button>
+    </div>
+    <div class="pad" id="pad"></div>
+    <div class="status" id="status"></div>
+    <div id="winBox"></div>
+    <div class="gbtns">
+      <button class="btn btn-main" id="checkBtn">✅ Проверить</button>
+      <button class="btn btn-ghost" id="menuBtn">☰ Меню</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+  const $=(id)=>document.getElementById(id);
+  function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1600);}
+
+  // ===== ЗВУК КЛИКА =====
+  let soundOn=true;
+  function actx(){return new (window.AudioContext||window.webkitAudioContext)();}
+  function click(freq){
+    if(!soundOn)return;
+    const ctx=actx(),t=ctx.currentTime;
+    const o=ctx.createOscillator();o.type="triangle";o.frequency.setValueAtTime(freq||520,t);o.frequency.exponentialRampToValueAtTime((freq||520)*0.6,t+0.05);
+    const g=ctx.createGain();g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.25,t+0.005);g.gain.exponentialRampToValueAtTime(0.0001,t+0.08);
+    o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.09);
+    setTimeout(()=>ctx.close(),150);
+  }
+  function ding(){ // приятный аккорд на победу
+    if(!soundOn)return;const ctx=actx(),t=ctx.currentTime;[523,659,784].forEach((f,k)=>{const o=ctx.createOscillator();o.type="triangle";o.frequency.value=f;const g=ctx.createGain();const s=t+k*0.1;g.gain.setValueAtTime(0.0001,s);g.gain.exponentialRampToValueAtTime(0.3,s+0.02);g.gain.exponentialRampToValueAtTime(0.0001,s+0.25);o.connect(g);g.connect(ctx.destination);o.start(s);o.stop(s+0.27);});setTimeout(()=>ctx.close(),700);}
+  function trrun(){ // «трррунь» на заполненную линию/квадрат
+    if(!soundOn)return;const ctx=actx(),t=ctx.currentTime;
+    const trill=[880,1100,880,1100,880,1100];
+    trill.forEach((f,k)=>{const s=t+k*0.04;const o=ctx.createOscillator();o.type="triangle";o.frequency.value=f;const g=ctx.createGain();g.gain.setValueAtTime(0.0001,s);g.gain.exponentialRampToValueAtTime(0.22,s+0.008);g.gain.exponentialRampToValueAtTime(0.0001,s+0.038);o.connect(g);g.connect(ctx.destination);o.start(s);o.stop(s+0.05);});
+    const s2=t+trill.length*0.04;const o2=ctx.createOscillator();o2.type="triangle";o2.frequency.setValueAtTime(1320,s2);o2.frequency.exponentialRampToValueAtTime(1760,s2+0.18);const g2=ctx.createGain();g2.gain.setValueAtTime(0.0001,s2);g2.gain.exponentialRampToValueAtTime(0.3,s2+0.02);g2.gain.exponentialRampToValueAtTime(0.0001,s2+0.22);o2.connect(g2);g2.connect(ctx.destination);o2.start(s2);o2.stop(s2+0.24);
+    setTimeout(()=>ctx.close(),700);
+  }
+
+  // уровни: сколько клеток ОТКРЫТО (из 81). Меньше открыто = сложнее.
+  const LEVELS=[
+    {key:"beginner",name:"Начинающий",dot:"🟢",givens:50},
+    {key:"easy",name:"Лёгкий",dot:"🟢",givens:42},
+    {key:"medium",name:"Средний",dot:"🟡",givens:36},
+    {key:"hard",name:"Сложный",dot:"🟠",givens:30},
+    {key:"expert",name:"Эксперт",dot:"🔴",givens:26},
+    {key:"extreme",name:"Экстремальный",dot:"⚫",givens:22},
+  ];
+
+  let solution=[],puzzle=[],given=[],notes=[],sel=-1,noteMode=false,mistakes=0,curLevel=null;
+  let timerInt=null,seconds=0,solved=false;
+  let flashCells=new Set();
+  function cellsOfRow(r){const a=[];for(let c=0;c<9;c++)a.push(r*9+c);return a;}
+  function cellsOfCol(c){const a=[];for(let r=0;r<9;r++)a.push(r*9+c);return a;}
+  function cellsOfBox(r,c){const br=Math.floor(r/3)*3,bc=Math.floor(c/3)*3,a=[];for(let dr=0;dr<3;dr++)for(let dc=0;dc<3;dc++)a.push((br+dr)*9+(bc+dc));return a;}
+  function groupFull(idxs){return idxs.every(i=>puzzle[Math.floor(i/9)][i%9]!==0);}
+  function flashGroup(idxs){idxs.forEach(i=>flashCells.add(i));drawBoard();trrun();setTimeout(()=>{idxs.forEach(i=>flashCells.delete(i));drawBoard();},2000);}
+  function checkGroupComplete(r,c,wasEmpty){
+    if(!wasEmpty)return;
+    let g=[];const row=cellsOfRow(r);if(groupFull(row))g.push(...row);
+    const col=cellsOfCol(c);if(groupFull(col))g.push(...col);
+    const box=cellsOfBox(r,c);if(groupFull(box))g.push(...box);
+    if(g.length)flashGroup([...new Set(g)]);
+  }
+
+  // ===== меню =====
+  function renderLevels(){
+    const box=$("levels");box.innerHTML="";
+    LEVELS.forEach(L=>{
+      const b=document.createElement("button");b.className="lvl";
+      b.innerHTML='<span class="dot">'+L.dot+'</span><span class="nm">'+L.name+'</span><span class="cnt">'+L.givens+' клеток</span>';
+      b.onclick=()=>startGame(L);
+      box.appendChild(b);
+    });
+  }
+
+  // ===== генератор судоку =====
+  function makeSolved(){
+    const g=Array.from({length:9},()=>Array(9).fill(0));
+    fill(g);
+    return g;
+  }
+  function fill(g){
+    for(let i=0;i<81;i++){
+      const r=Math.floor(i/9),c=i%9;
+      if(g[r][c]===0){
+        const nums=shuffle([1,2,3,4,5,6,7,8,9]);
+        for(const n of nums){
+          if(safe(g,r,c,n)){
+            g[r][c]=n;
+            if(fill(g))return true;
+            g[r][c]=0;
+          }
+        }
+        return false;
+      }
+    }
+    return true;
+  }
+  function safe(g,r,c,n){
+    for(let i=0;i<9;i++){if(g[r][i]===n||g[i][c]===n)return false;}
+    const br=Math.floor(r/3)*3,bc=Math.floor(c/3)*3;
+    for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(g[br+i][bc+j]===n)return false;
+    return true;
+  }
+  function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+  // считаем число решений (стоп на 2)
+  function countSolutions(g,limit){
+    let count=0;
+    function rec(){
+      for(let i=0;i<81;i++){
+        const r=Math.floor(i/9),c=i%9;
+        if(g[r][c]===0){
+          for(let n=1;n<=9;n++){
+            if(safe(g,r,c,n)){g[r][c]=n;rec();g[r][c]=0;if(count>=limit)return;}
+          }
+          return;
+        }
+      }
+      count++;
+    }
+    rec();
+    return count;
+  }
+
+  function makePuzzle(givensTarget){
+    const sol=makeSolved();
+    const pz=sol.map(row=>row.slice());
+    // убираем клетки, сохраняя единственность решения
+    const cells=shuffle([...Array(81).keys()]);
+    let filled=81;
+    for(const idx of cells){
+      if(filled<=givensTarget)break;
+      const r=Math.floor(idx/9),c=idx%9;
+      if(pz[r][c]===0)continue;
+      const backup=pz[r][c];pz[r][c]=0;
+      const test=pz.map(row=>row.slice());
+      if(countSolutions(test,2)!==1){pz[r][c]=backup;}
+      else filled--;
+    }
+    return {sol,pz};
+  }
+
+  // ===== старт игры =====
+  function startGame(L){
+    curLevel=L;
+    $("setup").style.display="none";$("game").style.display="block";
+    $("board").innerHTML='<div class="loading">⏳ Готовлю судоку уровня «'+L.name+'»...</div>';
+    $("status").textContent="";$("winBox").innerHTML="";
+    // даём браузеру отрисовать «загрузку», потом считаем
+    setTimeout(()=>{
+      const {sol,pz}=makePuzzle(L.givens);
+      solution=sol;puzzle=pz.map(r=>r.slice());given=pz.map(r=>r.map(v=>v!==0));
+      notes=Array.from({length:81},()=>new Set());
+      sel=-1;noteMode=false;mistakes=0;solved=false;seconds=0;
+      $("lvLabel").textContent=L.dot+" "+L.name;$("mistakes").textContent="Ошибки: 0";
+      $("noteBtn").classList.remove("on");
+      drawBoard();renderPad();startTimer();
+    },60);
+  }
+
+  function drawBoard(){
+    const bd=$("board");bd.innerHTML="";
+    for(let i=0;i<81;i++){
+      const r=Math.floor(i/9),c=i%9,v=puzzle[r][c];
+      const sq=document.createElement("div");
+      sq.className="sq";sq.dataset.r=r;sq.dataset.c=c;
+      if(given[r][c])sq.classList.add("given");else if(v)sq.classList.add("user");
+      if(i===sel)sq.classList.add("sel");
+      else if(sel>=0){
+        const sr=Math.floor(sel/9),sc=sel%9;
+        if(v&&puzzle[sr][sc]&&v===puzzle[sr][sc])sq.classList.add("same");
+      }
+      if(flashCells.has(i))sq.classList.add("flash");
+      if(v){
+        if(!given[r][c]&&v!==solution[r][c])sq.classList.add("bad");
+        sq.textContent=v;
+      } else if(notes[i].size){
+        const nd=document.createElement("div");nd.className="notes";
+        for(let n=1;n<=9;n++){const s=document.createElement("span");s.textContent=notes[i].has(n)?n:"";nd.appendChild(s);}
+        sq.appendChild(nd);
+      }
+      sq.onclick=()=>{sel=i;drawBoard();};
+      bd.appendChild(sq);
+    }
+  }
+
+  function renderPad(){
+    const pad=$("pad");pad.innerHTML="";
+    for(let n=1;n<=9;n++){
+      const b=document.createElement("button");b.textContent=n;
+      // если цифра расставлена 9 раз — тускнеет
+      let cnt=0;for(let i=0;i<81;i++)if(puzzle[Math.floor(i/9)][i%9]===n)cnt++;
+      if(cnt>=9)b.classList.add("done");
+      b.onclick=()=>inputNum(n);
+      pad.appendChild(b);
+    }
+  }
+
+  function inputNum(n){
+    if(solved||sel<0)return;
+    const r=Math.floor(sel/9),c=sel%9;
+    if(given[r][c])return;
+    if(noteMode){
+      if(puzzle[r][c]){toast("Сначала сотри цифру");return;}
+      if(notes[sel].has(n))notes[sel].delete(n);else notes[sel].add(n);
+      drawBoard();return;
+    }
+    if(puzzle[r][c]===n){puzzle[r][c]=0;drawBoard();renderPad();return;} // повторный тап — стереть
+    const wasEmpty=puzzle[r][c]===0;
+    puzzle[r][c]=n;notes[sel].clear();
+    if(n!==solution[r][c]){mistakes++;$("mistakes").textContent="Ошибки: "+mistakes;}
+    // убрать заметки этого числа у соседей
+    drawBoard();renderPad();
+    checkGroupComplete(r,c,wasEmpty);
+    checkWin();
+  }
+
+  $("noteBtn").addEventListener("click",()=>{noteMode=!noteMode;$("noteBtn").classList.toggle("on",noteMode);toast(noteMode?"Режим заметок ✏️":"Обычный ввод");});
+  $("eraseBtn").addEventListener("click",()=>{if(solved||sel<0)return;const r=Math.floor(sel/9),c=sel%9;if(given[r][c])return;puzzle[r][c]=0;notes[sel].clear();drawBoard();renderPad();});
+  $("hintBtn").addEventListener("click",()=>{
+    if(solved||sel<0){toast("Выбери клетку для подсказки");return;}
+    const r=Math.floor(sel/9),c=sel%9;if(given[r][c]){toast("Эта клетка и так открыта");return;}
+    const wasEmpty=puzzle[r][c]===0;
+    puzzle[r][c]=solution[r][c];notes[sel].clear();drawBoard();renderPad();checkGroupComplete(r,c,wasEmpty);checkWin();toast("💡 Подсказка вставлена");
+  });
+
+  $("checkBtn").addEventListener("click",()=>{
+    let empty=0,wrong=0;
+    for(let i=0;i<81;i++){const r=Math.floor(i/9),c=i%9;if(!puzzle[r][c])empty++;else if(puzzle[r][c]!==solution[r][c])wrong++;}
+    if(empty===0&&wrong===0){win();return;}
+    const st=$("status");st.className="status err";
+    st.textContent=wrong>0?("❌ Ошибок: "+wrong+(empty?(", пусто: "+empty):"")):("Заполни ещё "+empty+" клеток");
+  });
+  $("menuBtn").addEventListener("click",()=>{clearInterval(timerInt);$("game").style.display="none";$("setup").style.display="block";});
+
+  function checkWin(){
+    for(let i=0;i<81;i++){const r=Math.floor(i/9),c=i%9;if(puzzle[r][c]!==solution[r][c])return;}
+    win();
+  }
+  function win(){
+    solved=true;clearInterval(timerInt);
+    $("status").textContent="";
+    $("winBox").innerHTML='<div class="win-overlay"><div class="em">🏆</div><div class="ttl">РЕШЕНО!</div><div style="color:var(--muted);font-size:13px;">Время: '+fmt(seconds)+' · Ошибок: '+mistakes+'</div></div>';
+    toast("🎉 Судоку решено!");
+  }
+
+  function startTimer(){clearInterval(timerInt);seconds=0;$("timer").textContent="0:00";timerInt=setInterval(()=>{seconds++;$("timer").textContent=fmt(seconds);},1000);}
+  function fmt(s){const m=Math.floor(s/60);return m+":"+String(s%60).padStart(2,"0");}
+
+  // клавиатура (для компа)
+  document.addEventListener("keydown",(e)=>{
+    if($("game").style.display!=="block")return;
+    if(e.key>="1"&&e.key<="9")inputNum(parseInt(e.key,10));
+    else if(e.key==="Backspace"||e.key==="Delete"||e.key==="0"){if(sel>=0){const r=Math.floor(sel/9),c=sel%9;if(!given[r][c]){puzzle[r][c]=0;notes[sel].clear();drawBoard();renderPad();}}}
+    else if(e.key.startsWith("Arrow")&&sel>=0){let r=Math.floor(sel/9),c=sel%9;if(e.key==="ArrowUp")r=(r+8)%9;if(e.key==="ArrowDown")r=(r+1)%9;if(e.key==="ArrowLeft")c=(c+8)%9;if(e.key==="ArrowRight")c=(c+1)%9;sel=r*9+c;drawBoard();}
+  });
+
+  // звук клика на любой тап по кнопке/клетке/уровню
+  document.addEventListener("pointerdown",(e)=>{
+    if(e.target.closest(".sq"))click(440);
+    else if(e.target.closest(".pad button"))click(640);
+    else if(e.target.closest(".lvl"))click(560);
+    else if(e.target.closest("button"))click(500);
+  });
+
+  renderLevels();
+</script>
+</body>
+</html>
